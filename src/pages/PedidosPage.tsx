@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Box,
   VStack,
@@ -19,85 +19,49 @@ import {
   IconButton,
   Divider,
   useToast,
+  Input,
+  InputGroup,
+  InputLeftElement,
 } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
-import { FiEdit, FiCreditCard, FiPlus, FiTrash2 } from "react-icons/fi"
-
-// Tipo para os pedidos
-interface Pedido {
-  id: number
-  mesa: string
-  cliente: string
-  itens: Array<{
-    nome: string
-    quantidade: number
-    preco: number
-  }>
-  status: "aberto" | "fechado" | "pago"
-  timestamp: Date
-}
+import { FiEdit, FiCreditCard, FiPlus, FiTrash2, FiSearch } from "react-icons/fi"
+import { useData, type Pedido } from "../context/DataContext"
 
 const PedidosPage = () => {
   const toast = useToast()
-
-  // Dados de exemplo
-  const [pedidos, setPedidos] = useState<Pedido[]>([
-    {
-      id: 1,
-      mesa: "Mesa 1",
-      cliente: "João Silva",
-      itens: [
-        { nome: "Hot Dog Completo", quantidade: 2, preco: 12.0 },
-        { nome: "Refrigerante", quantidade: 1, preco: 6.0 },
-      ],
-      status: "aberto",
-      timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
-    },
-    {
-      id: 2,
-      mesa: "Mesa 3",
-      cliente: "Maria Oliveira",
-      itens: [
-        { nome: "Hot Dog Simples", quantidade: 1, preco: 10.0 },
-        { nome: "Água", quantidade: 1, preco: 4.0 },
-      ],
-      status: "aberto",
-      timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 minutos atrás
-    },
-    {
-      id: 3,
-      mesa: "Balcão 2",
-      cliente: "Pedro Santos",
-      itens: [
-        { nome: "Hot Dog Bacon", quantidade: 3, preco: 15.0 },
-        { nome: "Refrigerante", quantidade: 2, preco: 6.0 },
-      ],
-      status: "aberto",
-      timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutos atrás
-    },
-    {
-      id: 4,
-      mesa: "Delivery",
-      cliente: "Ana Costa",
-      itens: [{ nome: "Hot Dog Vegetariano", quantidade: 1, preco: 16.0 }],
-      status: "aberto",
-      timestamp: new Date(),
-    },
-    {
-      id: 5,
-      mesa: "Mesa 5",
-      cliente: "Carlos Mendes",
-      itens: [
-        { nome: "Hot Dog Frango", quantidade: 2, preco: 14.0 },
-        { nome: "Suco", quantidade: 2, preco: 8.0 },
-      ],
-      status: "aberto",
-      timestamp: new Date(Date.now() - 1000 * 60 * 45), // 45 minutos atrás
-    },
-  ])
-
+  const { pedidos, updatePedido, deletePedido } = useData()
   const { isOpen, onOpen, onClose } = useDisclosure()
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+  const [filteredPedidos, setFilteredPedidos] = useState<Pedido[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"todos" | "aberto" | "fechado">("todos")
+
+  useEffect(() => {
+    let filtered = [...pedidos]
+
+    // Aplicar filtro de status
+    if (statusFilter !== "todos") {
+      filtered = filtered.filter((p) => p.status === statusFilter)
+    } else {
+      filtered = filtered.filter((p) => p.status === "aberto" || p.status === "fechado")
+    }
+
+    // Aplicar busca por termo
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter(
+        (p) =>
+          p.cliente.toLowerCase().includes(term) ||
+          p.mesa.toLowerCase().includes(term) ||
+          p.id.toString().includes(term),
+      )
+    }
+
+    // Ordenar por timestamp (mais recente primeiro)
+    filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+    setFilteredPedidos(filtered)
+  }, [pedidos, searchTerm, statusFilter])
 
   const handlePedidoClick = (pedido: Pedido) => {
     setSelectedPedido(pedido)
@@ -105,33 +69,39 @@ const PedidosPage = () => {
   }
 
   const fecharComanda = (id: number) => {
-    setPedidos(pedidos.map((pedido) => (pedido.id === id ? { ...pedido, status: "fechado" } : pedido)))
-    onClose()
+    const pedido = pedidos.find((p) => p.id === id)
+    if (pedido) {
+      updatePedido({ ...pedido, status: "fechado" })
+      setSelectedPedido({ ...pedido, status: "fechado" })
 
-    toast({
-      title: "Comanda fechada",
-      description: `A comanda #${id} foi fechada e está pronta para pagamento.`,
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    })
+      toast({
+        title: "Comanda fechada",
+        description: `A comanda #${id} foi fechada e está pronta para pagamento.`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      })
+    }
   }
 
   const reabrirComanda = (id: number) => {
-    setPedidos(pedidos.map((pedido) => (pedido.id === id ? { ...pedido, status: "aberto" } : pedido)))
-    onClose()
+    const pedido = pedidos.find((p) => p.id === id)
+    if (pedido) {
+      updatePedido({ ...pedido, status: "aberto" })
+      setSelectedPedido({ ...pedido, status: "aberto" })
 
-    toast({
-      title: "Comanda reaberta",
-      description: `A comanda #${id} foi reaberta para adicionar mais itens.`,
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    })
+      toast({
+        title: "Comanda reaberta",
+        description: `A comanda #${id} foi reaberta para adicionar mais itens.`,
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      })
+    }
   }
 
   const excluirComanda = (id: number) => {
-    setPedidos(pedidos.filter((pedido) => pedido.id !== id))
+    deletePedido(id)
     onClose()
 
     toast({
@@ -147,50 +117,97 @@ const PedidosPage = () => {
     return pedido.itens.reduce((total, item) => total + item.preco * item.quantidade, 0)
   }
 
-  const formatarHora = (date: Date) => {
+  const formatarHora = (dateStr: Date) => {
+    const date = new Date(dateStr)
     return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
   }
 
   return (
     <Box maxW="1200px" mx="auto" p={4}>
-      <Flex justify="space-between" align="center" mb={6}>
-        <Button
-          bg="#C25B02"
-          color="white"
-          size="md"
-          borderRadius="full"
-          px={6}
-          py={2}
-          fontWeight="normal"
-          fontSize="md"
-          _hover={{ bg: "#B24A01" }}
-        >
-          Comandas em andamento
-        </Button>
-        <Button
-          as={RouterLink}
-          to="/novo-pedido"
-          bg="#C25B02"
-          color="white"
-          size="md"
-          borderRadius="full"
-          px={6}
-          py={2}
-          fontWeight="normal"
-          fontSize="md"
-          leftIcon={<FiPlus />}
-          _hover={{ bg: "#B24A01" }}
-        >
-          Nova comanda
-        </Button>
+      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
+        <HStack>
+          <Button
+            bg={statusFilter === "todos" ? "#C25B02" : "gray.700"}
+            color="white"
+            size="md"
+            borderRadius="full"
+            px={6}
+            py={2}
+            fontWeight="normal"
+            fontSize="md"
+            _hover={{ bg: statusFilter === "todos" ? "#B24A01" : "gray.600" }}
+            onClick={() => setStatusFilter("todos")}
+          >
+            Todas
+          </Button>
+          <Button
+            bg={statusFilter === "aberto" ? "#C25B02" : "gray.700"}
+            color="white"
+            size="md"
+            borderRadius="full"
+            px={6}
+            py={2}
+            fontWeight="normal"
+            fontSize="md"
+            _hover={{ bg: statusFilter === "aberto" ? "#B24A01" : "gray.600" }}
+            onClick={() => setStatusFilter("aberto")}
+          >
+            Abertas
+          </Button>
+          <Button
+            bg={statusFilter === "fechado" ? "#C25B02" : "gray.700"}
+            color="white"
+            size="md"
+            borderRadius="full"
+            px={6}
+            py={2}
+            fontWeight="normal"
+            fontSize="md"
+            _hover={{ bg: statusFilter === "fechado" ? "#B24A01" : "gray.600" }}
+            onClick={() => setStatusFilter("fechado")}
+          >
+            Fechadas
+          </Button>
+        </HStack>
+
+        <HStack>
+          <InputGroup maxW="300px">
+            <InputLeftElement pointerEvents="none">
+              <FiSearch color="gray.300" />
+            </InputLeftElement>
+            <Input
+              placeholder="Buscar comanda..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              bg="black"
+              color="white"
+              borderColor="whiteAlpha.300"
+            />
+          </InputGroup>
+
+          <Button
+            as={RouterLink}
+            to="/novo-pedido"
+            bg="#C25B02"
+            color="white"
+            size="md"
+            borderRadius="full"
+            px={6}
+            py={2}
+            fontWeight="normal"
+            fontSize="md"
+            leftIcon={<FiPlus />}
+            _hover={{ bg: "#B24A01" }}
+          >
+            Nova comanda
+          </Button>
+        </HStack>
       </Flex>
 
       <Box bg="black" borderRadius="xl" p={4} overflow="hidden">
         <VStack spacing={1} align="stretch">
-          {pedidos
-            .filter((p) => p.status === "aberto" || p.status === "fechado")
-            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-            .map((pedido) => (
+          {filteredPedidos.length > 0 ? (
+            filteredPedidos.map((pedido) => (
               <Box
                 key={pedido.id}
                 bg="#E6B325"
@@ -236,11 +253,10 @@ const PedidosPage = () => {
                   </Box>
                 </Flex>
               </Box>
-            ))}
-
-          {pedidos.filter((p) => p.status === "aberto" || p.status === "fechado").length === 0 && (
+            ))
+          ) : (
             <Box p={4} textAlign="center">
-              <Text color="white">Nenhuma comanda em andamento</Text>
+              <Text color="white">Nenhuma comanda encontrada</Text>
             </Box>
           )}
         </VStack>

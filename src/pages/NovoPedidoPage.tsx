@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Box,
   Heading,
@@ -23,105 +23,49 @@ import {
   Badge,
   IconButton,
   Divider,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
 } from "@chakra-ui/react"
 import { useNavigate } from "react-router-dom"
-import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart } from "react-icons/fi"
-
-// Tipos
-interface Produto {
-  id: number
-  nome: string
-  preco: number
-  imagem: string
-  categoria: string
-}
-
-interface ItemPedido {
-  produto: Produto
-  quantidade: number
-  observacao?: string
-}
+import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart, FiUser } from "react-icons/fi"
+import { useData, type ItemPedido, type Cliente } from "../context/DataContext"
 
 const NovoPedidoPage = () => {
   const navigate = useNavigate()
   const toast = useToast()
-
-  // Produtos de exemplo
-  const produtos: Produto[] = [
-    {
-      id: 1,
-      nome: "Hot Dog Tradicional",
-      preco: 12.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 2,
-      nome: "Hot Dog Bacon",
-      preco: 15.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 3,
-      nome: "Hot Dog Frango",
-      preco: 14.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 4,
-      nome: "Hot Dog Vegetariano",
-      preco: 16.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 5,
-      nome: "Refrigerante Lata",
-      preco: 6.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Bebidas",
-    },
-    {
-      id: 6,
-      nome: "Água Mineral",
-      preco: 4.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Bebidas",
-    },
-    {
-      id: 7,
-      nome: "Suco Natural",
-      preco: 8.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Bebidas",
-    },
-    {
-      id: 8,
-      nome: "Batata Frita",
-      preco: 10.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Acompanhamentos",
-    },
-    {
-      id: 9,
-      nome: "Onion Rings",
-      preco: 12.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Acompanhamentos",
-    },
-  ]
+  const { produtos, addPedido, clientes, addCliente, getClienteByNome } = useData()
+  const { isOpen, onOpen, onClose } = useDisclosure()
 
   const [itensPedido, setItensPedido] = useState<ItemPedido[]>([])
   const [cliente, setCliente] = useState("")
+  const [telefoneCliente, setTelefoneCliente] = useState("")
   const [mesa, setMesa] = useState("")
   const [observacaoItem, setObservacaoItem] = useState<{ [key: number]: string }>({})
+  const [clienteExistente, setClienteExistente] = useState<Cliente | null>(null)
+  const [clienteSugestoes, setClienteSugestoes] = useState<Cliente[]>([])
 
   // Obter categorias únicas
   const categorias = [...new Set(produtos.map((p) => p.categoria))]
 
-  const adicionarItem = (produto: Produto) => {
+  useEffect(() => {
+    if (cliente.length > 2) {
+      const sugestoes = clientes.filter((c) => c.nome.toLowerCase().includes(cliente.toLowerCase())).slice(0, 5)
+      setClienteSugestoes(sugestoes)
+
+      const existente = getClienteByNome(cliente)
+      setClienteExistente(existente || null)
+    } else {
+      setClienteSugestoes([])
+      setClienteExistente(null)
+    }
+  }, [cliente, clientes, getClienteByNome])
+
+  const adicionarItem = (produto: (typeof produtos)[0]) => {
     const itemExistente = itensPedido.find((item) => item.produto.id === produto.id)
 
     if (itemExistente) {
@@ -160,6 +104,48 @@ const NovoPedidoPage = () => {
     setItensPedido(itensPedido.filter((item) => item.produto.id !== produtoId))
   }
 
+  const handleSelecionarCliente = (clienteSelecionado: Cliente) => {
+    setCliente(clienteSelecionado.nome)
+    setTelefoneCliente(clienteSelecionado.telefone || "")
+    setClienteExistente(clienteSelecionado)
+    setClienteSugestoes([])
+  }
+
+  const handleNovoCliente = () => {
+    onOpen()
+  }
+
+  const salvarNovoCliente = () => {
+    if (!cliente.trim() || !telefoneCliente.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, preencha o nome e telefone do cliente",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      })
+      return
+    }
+
+    const novoCliente = addCliente({
+      nome: cliente,
+      telefone: telefoneCliente,
+      historicoPedidos: [],
+    })
+
+    setClienteExistente(novoCliente)
+
+    toast({
+      title: "Cliente adicionado",
+      description: `Cliente ${novoCliente.nome} adicionado com sucesso!`,
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    })
+
+    onClose()
+  }
+
   const salvarComanda = () => {
     if (itensPedido.length === 0) {
       toast({
@@ -194,12 +180,26 @@ const NovoPedidoPage = () => {
       return
     }
 
-    // Simulando a criação de uma comanda
-    const novaComandaId = Math.floor(Math.random() * 1000) + 6
+    // Criar o pedido com os dados atuais
+    const valorTotal = calcularTotal()
+    const novoPedido = addPedido({
+      clienteId: clienteExistente?.id,
+      mesa,
+      cliente,
+      itens: itensPedido.map((item) => ({
+        nome: item.produto.nome,
+        quantidade: item.quantidade,
+        preco: item.produto.preco,
+        observacao: item.observacao,
+      })),
+      status: "aberto",
+      timestamp: new Date(),
+      valorTotal,
+    })
 
     toast({
       title: "Comanda criada",
-      description: `Comanda #${novaComandaId} criada com sucesso!`,
+      description: `Comanda #${novoPedido.id} criada com sucesso!`,
       status: "success",
       duration: 3000,
       isClosable: true,
@@ -235,16 +235,54 @@ const NovoPedidoPage = () => {
             </Heading>
 
             <Flex gap={4} direction={{ base: "column", sm: "row" }}>
-              <FormControl>
+              <FormControl position="relative">
                 <FormLabel color="white">Cliente</FormLabel>
-                <Input
-                  placeholder="Nome do cliente"
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  bg="whiteAlpha.100"
-                  color="white"
-                  _placeholder={{ color: "whiteAlpha.500" }}
-                />
+                <Flex>
+                  <Input
+                    placeholder="Nome do cliente"
+                    value={cliente}
+                    onChange={(e) => setCliente(e.target.value)}
+                    bg="whiteAlpha.100"
+                    color="white"
+                    _placeholder={{ color: "whiteAlpha.500" }}
+                  />
+                  <IconButton
+                    aria-label="Adicionar cliente"
+                    icon={<FiUser />}
+                    ml={2}
+                    onClick={handleNovoCliente}
+                    colorScheme="yellow"
+                  />
+                </Flex>
+                {clienteSugestoes.length > 0 && (
+                  <Box
+                    position="absolute"
+                    zIndex="10"
+                    bg="black"
+                    width="100%"
+                    borderRadius="md"
+                    mt={1}
+                    border="1px solid"
+                    borderColor="whiteAlpha.300"
+                  >
+                    {clienteSugestoes.map((c) => (
+                      <Box
+                        key={c.id}
+                        p={2}
+                        cursor="pointer"
+                        _hover={{ bg: "whiteAlpha.200" }}
+                        onClick={() => handleSelecionarCliente(c)}
+                      >
+                        <Text color="white">{c.nome}</Text>
+                        {c.telefone && (
+                          <Text fontSize="xs" color="whiteAlpha.700">
+                            {c.telefone}
+                          </Text>
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </FormControl>
 
               <FormControl>
@@ -274,58 +312,60 @@ const NovoPedidoPage = () => {
             <TabPanels bg="black" borderBottomRadius="md">
               <TabPanel>
                 <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
-                  {produtos.map((produto) => (
-                    <GridItem
-                      key={produto.id}
-                      bg="#E6B325"
-                      p={4}
-                      borderRadius="md"
-                      transition="all 0.3s"
-                      _hover={{ bg: "#D6A315" }}
-                    >
-                      <Flex direction="column" align="center">
-                        <Image
-                          src={produto.imagem || "/placeholder.svg"}
-                          alt={produto.nome}
-                          boxSize="100px"
-                          objectFit="cover"
-                          borderRadius="md"
-                          mb={3}
-                        />
-                        <Text fontWeight="bold" mb={1}>
-                          {produto.nome}
-                        </Text>
-                        <Text mb={3}>R$ {produto.preco.toFixed(2)}</Text>
+                  {produtos
+                    .filter((p) => p.ativo)
+                    .map((produto) => (
+                      <GridItem
+                        key={produto.id}
+                        bg="#E6B325"
+                        p={4}
+                        borderRadius="md"
+                        transition="all 0.3s"
+                        _hover={{ bg: "#D6A315" }}
+                      >
+                        <Flex direction="column" align="center">
+                          <Image
+                            src={produto.imagem || "/placeholder.svg"}
+                            alt={produto.nome}
+                            boxSize="100px"
+                            objectFit="cover"
+                            borderRadius="md"
+                            mb={3}
+                          />
+                          <Text fontWeight="bold" mb={1}>
+                            {produto.nome}
+                          </Text>
+                          <Text mb={3}>R$ {produto.preco.toFixed(2)}</Text>
 
-                        <Flex width="100%" justify="space-between" align="center">
-                          <Input
-                            placeholder="Observação"
-                            size="sm"
-                            value={observacaoItem[produto.id] || ""}
-                            onChange={(e) =>
-                              setObservacaoItem({
-                                ...observacaoItem,
-                                [produto.id]: e.target.value,
-                              })
-                            }
-                            bg="white"
-                            color="black"
-                            _placeholder={{ color: "gray.500" }}
-                          />
-                          <IconButton
-                            aria-label="Adicionar item"
-                            icon={<FiPlus />}
-                            size="sm"
-                            ml={2}
-                            bg="#C25B02"
-                            color="white"
-                            onClick={() => adicionarItem(produto)}
-                            _hover={{ bg: "#B24A01" }}
-                          />
+                          <Flex width="100%" justify="space-between" align="center">
+                            <Input
+                              placeholder="Observação"
+                              size="sm"
+                              value={observacaoItem[produto.id] || ""}
+                              onChange={(e) =>
+                                setObservacaoItem({
+                                  ...observacaoItem,
+                                  [produto.id]: e.target.value,
+                                })
+                              }
+                              bg="white"
+                              color="black"
+                              _placeholder={{ color: "gray.500" }}
+                            />
+                            <IconButton
+                              aria-label="Adicionar item"
+                              icon={<FiPlus />}
+                              size="sm"
+                              ml={2}
+                              bg="#C25B02"
+                              color="white"
+                              onClick={() => adicionarItem(produto)}
+                              _hover={{ bg: "#B24A01" }}
+                            />
+                          </Flex>
                         </Flex>
-                      </Flex>
-                    </GridItem>
-                  ))}
+                      </GridItem>
+                    ))}
                 </Grid>
               </TabPanel>
 
@@ -336,7 +376,7 @@ const NovoPedidoPage = () => {
                     gap={4}
                   >
                     {produtos
-                      .filter((produto) => produto.categoria === categoria)
+                      .filter((produto) => produto.categoria === categoria && produto.ativo)
                       .map((produto) => (
                         <GridItem
                           key={produto.id}
@@ -512,6 +552,46 @@ const NovoPedidoPage = () => {
           </Button>
         </Box>
       </Flex>
+
+      {/* Modal para adicionar novo cliente */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent bg="black" borderColor="#E6B325" borderWidth={1}>
+          <ModalHeader color="#E6B325">Adicionar Novo Cliente</ModalHeader>
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel color="white">Nome</FormLabel>
+                <Input
+                  placeholder="Nome completo"
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  bg="whiteAlpha.100"
+                  color="white"
+                />
+              </FormControl>
+              <FormControl isRequired>
+                <FormLabel color="white">Telefone</FormLabel>
+                <Input
+                  placeholder="(XX) XXXXX-XXXX"
+                  value={telefoneCliente}
+                  onChange={(e) => setTelefoneCliente(e.target.value)}
+                  bg="whiteAlpha.100"
+                  color="white"
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="outline" colorScheme="yellow" mr={3} onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button bg="#C25B02" color="white" onClick={salvarNovoCliente} _hover={{ bg: "#B24A01" }}>
+              Salvar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
   Box,
@@ -25,8 +25,10 @@ import {
   StatHelpText,
   Grid,
   GridItem,
+  Spinner,
 } from "@chakra-ui/react"
-import { FiCreditCard, FiDollarSign, FiSmartphone, FiCheck, FiPrinter } from "react-icons/fi"
+import { FiCreditCard, FiDollarSign, FiSmartphone, FiCheck, FiPrinter, FiAlertTriangle } from "react-icons/fi"
+import { useData, type Pedido, type Venda } from "../context/DataContext"
 
 type MetodoPagamento = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito"
 
@@ -34,29 +36,45 @@ const PagamentoPage = () => {
   const { pedidoId } = useParams<{ pedidoId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const { getPedido, updatePedido, addVenda, pedidos } = useData()
 
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>("pix")
-  const [troco, setTroco] = useState("")
-  const [processando, setProcessando] = useState(false)
   const [valorRecebido, setValorRecebido] = useState("")
+  const [processando, setProcessando] = useState(false)
   const [pagamentoFinalizado, setPagamentoFinalizado] = useState(false)
+  const [pedido, setPedido] = useState<Pedido | null>(null)
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
 
-  // Dados do pedido (simulado)
-  const pedido = {
-    id: pedidoId,
-    cliente: "João Silva",
-    mesa: "Mesa 1",
-    data: new Date(),
-    itens: [
-      { nome: "Hot Dog Tradicional", quantidade: 2, preco: 12.0 },
-      { nome: "Hot Dog Bacon", quantidade: 1, preco: 15.0 },
-      { nome: "Refrigerante", quantidade: 2, preco: 6.0 },
-    ],
-    status: "fechado",
-  }
+  // Buscar o pedido quando o componente for montado
+  useEffect(() => {
+    if (pedidoId) {
+      const pedidoEncontrado = getPedido(Number(pedidoId))
 
-  // Valor total do pedido
-  const valorTotal = pedido.itens.reduce((total, item) => total + item.preco * item.quantidade, 0)
+      if (pedidoEncontrado) {
+        setPedido(pedidoEncontrado)
+
+        // Se o pedido já foi pago, inicializar os estados correspondentes
+        if (pedidoEncontrado.status === "pago") {
+          setPagamentoFinalizado(true)
+          if (pedidoEncontrado.formaPagamento) {
+            setMetodoPagamento(pedidoEncontrado.formaPagamento)
+          }
+          if (pedidoEncontrado.valorRecebido) {
+            setValorRecebido(pedidoEncontrado.valorRecebido.toString())
+          }
+        }
+
+        setCarregando(false)
+      } else {
+        setErro("Pedido não encontrado")
+        setCarregando(false)
+      }
+    }
+  }, [pedidoId, getPedido])
+
+  // Calcular o valor total do pedido
+  const valorTotal = pedido ? pedido.itens.reduce((total, item) => total + item.preco * item.quantidade, 0) : 0
 
   // Calcular troco
   const calcularTroco = () => {
@@ -66,6 +84,8 @@ const PagamentoPage = () => {
   }
 
   const handleFinalizarPagamento = () => {
+    if (!pedido) return
+
     setProcessando(true)
 
     // Validações
@@ -83,6 +103,35 @@ const PagamentoPage = () => {
 
     // Simulando processamento de pagamento
     setTimeout(() => {
+      // Atualizar o status do pedido para pago
+      const valorRecebidoNum = valorRecebido ? Number.parseFloat(valorRecebido.replace(",", ".")) : valorTotal
+      const trocoCalculado = calcularTroco()
+
+      const pedidoPago: Pedido = {
+        ...pedido,
+        status: "pago",
+        formaPagamento: metodoPagamento,
+        valorRecebido: valorRecebidoNum,
+        troco: trocoCalculado,
+      }
+
+      updatePedido(pedidoPago)
+
+      // Registrar a venda
+      const novaVenda: Omit<Venda, "id"> = {
+        pedidoId: pedido.id,
+        valor: valorTotal,
+        formaPagamento: metodoPagamento,
+        data: new Date(),
+        itensVendidos: pedido.itens.map((item) => ({
+          nome: item.nome,
+          quantidade: item.quantidade,
+          valorUnitario: item.preco,
+        })),
+      }
+
+      addVenda(novaVenda)
+
       setProcessando(false)
       setPagamentoFinalizado(true)
 
@@ -110,6 +159,36 @@ const PagamentoPage = () => {
     navigate("/pedidos")
   }
 
+  if (carregando) {
+    return (
+      <Flex justify="center" align="center" height="60vh">
+        <Spinner size="xl" color="#E6B325" />
+      </Flex>
+    )
+  }
+
+  if (erro) {
+    return (
+      <Flex direction="column" justify="center" align="center" height="60vh" gap={4}>
+        <Icon as={FiAlertTriangle} color="#E6B325" boxSize={12} />
+        <Heading size="md" color="white">
+          {erro}
+        </Heading>
+        <Button onClick={() => navigate("/pedidos")} bg="#C25B02" color="white">
+          Voltar para Comandas
+        </Button>
+      </Flex>
+    )
+  }
+
+  if (!pedido) {
+    return (
+      <Flex justify="center" align="center" height="60vh">
+        <Text color="white">Pedido não encontrado</Text>
+      </Flex>
+    )
+  }
+
   return (
     <Box maxW="1200px" mx="auto" p={4}>
       <Button
@@ -135,8 +214,14 @@ const PagamentoPage = () => {
               <Heading size="md" color="#E6B325">
                 Resumo da Comanda
               </Heading>
-              <Badge colorScheme="orange" fontSize="sm" px={2} py={1} borderRadius="full">
-                Fechada
+              <Badge
+                colorScheme={pedido.status === "pago" ? "green" : "orange"}
+                fontSize="sm"
+                px={2}
+                py={1}
+                borderRadius="full"
+              >
+                {pedido.status === "pago" ? "Paga" : "Fechada"}
               </Badge>
             </Flex>
 
@@ -166,6 +251,12 @@ const PagamentoPage = () => {
                 <Flex key={index} justify="space-between" color="white">
                   <Text>
                     {item.quantidade}x {item.nome}
+                    {item.observacao && (
+                      <Text as="span" fontSize="xs" color="whiteAlpha.700">
+                        {" "}
+                        (Obs: {item.observacao})
+                      </Text>
+                    )}
                   </Text>
                   <Text>R$ {(item.preco * item.quantidade).toFixed(2)}</Text>
                 </Flex>
@@ -317,6 +408,13 @@ const PagamentoPage = () => {
                   </StatNumber>
                   <StatHelpText color="white">{new Date().toLocaleString("pt-BR")}</StatHelpText>
                 </Stat>
+
+                {pedido.troco && pedido.troco > 0 && (
+                  <Stat>
+                    <StatLabel color="white">Troco</StatLabel>
+                    <StatNumber color="#E6B325">R$ {pedido.troco.toFixed(2)}</StatNumber>
+                  </Stat>
+                )}
 
                 <HStack spacing={4}>
                   <Button

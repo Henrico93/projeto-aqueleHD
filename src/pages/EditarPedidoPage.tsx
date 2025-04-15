@@ -29,139 +29,69 @@ import {
   ModalBody,
   ModalFooter,
   Icon,
+  Spinner,
 } from "@chakra-ui/react"
 import { useParams, useNavigate } from "react-router-dom"
 import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart, FiAlertCircle } from "react-icons/fi"
-
-// Tipos
-interface Produto {
-  id: number
-  nome: string
-  preco: number
-  imagem: string
-  categoria: string
-}
-
-interface ItemPedido {
-  produto: Produto
-  quantidade: number
-  observacao?: string
-}
-
-interface Pedido {
-  id: number
-  mesa: string
-  cliente: string
-  itens: Array<{
-    nome: string
-    quantidade: number
-    preco: number
-    observacao?: string
-  }>
-  status: "aberto" | "fechado" | "pago"
-  timestamp: Date
-}
+import { useData, type ItemPedido } from "../context/DataContext"
 
 const EditarPedidoPage = () => {
   const { pedidoId } = useParams<{ pedidoId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { produtos, getPedido, updatePedido } = useData()
 
-  // Produtos de exemplo
-  const produtos: Produto[] = [
-    {
-      id: 1,
-      nome: "Hot Dog Tradicional",
-      preco: 12.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 2,
-      nome: "Hot Dog Bacon",
-      preco: 15.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 3,
-      nome: "Hot Dog Frango",
-      preco: 14.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 4,
-      nome: "Hot Dog Vegetariano",
-      preco: 16.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Hot Dogs",
-    },
-    {
-      id: 5,
-      nome: "Refrigerante Lata",
-      preco: 6.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Bebidas",
-    },
-    {
-      id: 6,
-      nome: "Água Mineral",
-      preco: 4.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Bebidas",
-    },
-    {
-      id: 7,
-      nome: "Suco Natural",
-      preco: 8.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Bebidas",
-    },
-    {
-      id: 8,
-      nome: "Batata Frita",
-      preco: 10.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Acompanhamentos",
-    },
-    {
-      id: 9,
-      nome: "Onion Rings",
-      preco: 12.0,
-      imagem: "/placeholder.svg?height=100&width=100",
-      categoria: "Acompanhamentos",
-    },
-  ]
-
-  // Pedido simulado
-  const pedidoSimulado: Pedido = {
-    id: Number(pedidoId),
-    mesa: "Mesa 1",
-    cliente: "João Silva",
-    itens: [
-      { nome: "Hot Dog Completo", quantidade: 2, preco: 12.0 },
-      { nome: "Refrigerante", quantidade: 1, preco: 6.0 },
-    ],
-    status: "aberto",
-    timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
-  }
-
-  const [pedido, setPedido] = useState<Pedido>(pedidoSimulado)
+  // Estados
   const [itensPedido, setItensPedido] = useState<ItemPedido[]>([])
   const [observacaoItem, setObservacaoItem] = useState<{ [key: number]: string }>({})
+  const [pedido, setPedido] = useState<ReturnType<typeof getPedido> | null>(null)
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
 
   // Obter categorias únicas
   const categorias = [...new Set(produtos.map((p) => p.categoria))]
 
   // Carregar pedido
   useEffect(() => {
-    // Aqui você faria uma chamada API para buscar os dados do pedido
-    // Simulando a conversão dos itens do pedido para o formato ItemPedido
-    const itensConvertidos: ItemPedido[] = pedidoSimulado.itens.map((item) => {
+    if (!pedidoId) {
+      setErro("ID do pedido não informado")
+      setCarregando(false)
+      return
+    }
+
+    const pedidoEncontrado = getPedido(Number(pedidoId))
+
+    if (!pedidoEncontrado) {
+      setErro("Pedido não encontrado")
+      setCarregando(false)
+      return
+    }
+
+    setPedido(pedidoEncontrado)
+
+    // Converter itens do pedido para o formato ItemPedido
+    const itensConvertidos: ItemPedido[] = pedidoEncontrado.itens.map((item) => {
       // Encontrar o produto correspondente
-      const produto = produtos.find((p) => p.nome === item.nome) || produtos[0]
+      const produto = produtos.find((p) => p.nome === item.nome)
+
+      if (!produto) {
+        // Se o produto não for encontrado, criar um produto temporário
+        const tempProduto = {
+          id: -1,
+          nome: item.nome,
+          preco: item.preco,
+          imagem: "/placeholder.svg?height=100&width=100",
+          categoria: "Sem categoria",
+          ativo: true,
+        }
+
+        return {
+          produto: tempProduto,
+          quantidade: item.quantidade,
+          observacao: item.observacao,
+        }
+      }
 
       return {
         produto,
@@ -171,9 +101,20 @@ const EditarPedidoPage = () => {
     })
 
     setItensPedido(itensConvertidos)
-  }, [pedidoId])
 
-  const adicionarItem = (produto: Produto) => {
+    // Preencher observações
+    const obsMap: { [key: number]: string } = {}
+    itensConvertidos.forEach((item) => {
+      if (item.observacao) {
+        obsMap[item.produto.id] = item.observacao
+      }
+    })
+
+    setObservacaoItem(obsMap)
+    setCarregando(false)
+  }, [pedidoId, getPedido, produtos])
+
+  const adicionarItem = (produto: (typeof produtos)[0]) => {
     const itemExistente = itensPedido.find((item) => item.produto.id === produto.id)
 
     if (itemExistente) {
@@ -201,6 +142,7 @@ const EditarPedidoPage = () => {
   }
 
   const atualizarObservacao = (produtoId: number, observacao: string) => {
+    setObservacaoItem({ ...observacaoItem, [produtoId]: observacao })
     setItensPedido(itensPedido.map((item) => (item.produto.id === produtoId ? { ...item, observacao } : item)))
   }
 
@@ -213,12 +155,27 @@ const EditarPedidoPage = () => {
   }
 
   const salvarComanda = () => {
+    if (!pedido) return
+
     if (itensPedido.length === 0) {
       onOpen() // Abrir modal de confirmação
       return
     }
 
-    // Simulando a atualização da comanda
+    // Atualizar pedido com os novos itens
+    const pedidoAtualizado = {
+      ...pedido,
+      itens: itensPedido.map((item) => ({
+        nome: item.produto.nome,
+        quantidade: item.quantidade,
+        preco: item.produto.preco,
+        observacao: item.observacao,
+      })),
+      valorTotal: calcularTotal(),
+    }
+
+    updatePedido(pedidoAtualizado)
+
     toast({
       title: "Comanda atualizada",
       description: `Comanda #${pedidoId} atualizada com sucesso!`,
@@ -232,6 +189,17 @@ const EditarPedidoPage = () => {
   }
 
   const confirmarSalvarVazia = () => {
+    if (!pedido) return
+
+    // Atualizar pedido com lista vazia de itens
+    const pedidoAtualizado = {
+      ...pedido,
+      itens: [],
+      valorTotal: 0,
+    }
+
+    updatePedido(pedidoAtualizado)
+
     onClose()
 
     toast({
@@ -243,6 +211,36 @@ const EditarPedidoPage = () => {
     })
 
     navigate(`/pedidos`)
+  }
+
+  if (carregando) {
+    return (
+      <Flex justify="center" align="center" h="50vh">
+        <Spinner size="xl" color="#E6B325" />
+      </Flex>
+    )
+  }
+
+  if (erro) {
+    return (
+      <Flex direction="column" align="center" justify="center" h="50vh">
+        <Icon as={FiAlertCircle} boxSize={12} color="red.500" mb={4} />
+        <Text color="white" fontSize="xl">
+          {erro}
+        </Text>
+        <Button mt={8} bg="#C25B02" color="white" onClick={() => navigate("/pedidos")} _hover={{ bg: "#B24A01" }}>
+          Voltar para Comandas
+        </Button>
+      </Flex>
+    )
+  }
+
+  if (!pedido) {
+    return (
+      <Box p={4} textAlign="center">
+        <Text color="white">Pedido não encontrado</Text>
+      </Box>
+    )
   }
 
   return (
@@ -304,58 +302,65 @@ const EditarPedidoPage = () => {
             <TabPanels bg="black" borderBottomRadius="md">
               <TabPanel>
                 <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
-                  {produtos.map((produto) => (
-                    <GridItem
-                      key={produto.id}
-                      bg="#E6B325"
-                      p={4}
-                      borderRadius="md"
-                      transition="all 0.3s"
-                      _hover={{ bg: "#D6A315" }}
-                    >
-                      <Flex direction="column" align="center">
-                        <Image
-                          src={produto.imagem || "/placeholder.svg"}
-                          alt={produto.nome}
-                          boxSize="100px"
-                          objectFit="cover"
-                          borderRadius="md"
-                          mb={3}
-                        />
-                        <Text fontWeight="bold" mb={1}>
-                          {produto.nome}
-                        </Text>
-                        <Text mb={3}>R$ {produto.preco.toFixed(2)}</Text>
+                  {produtos
+                    .filter((p) => p.ativo)
+                    .map((produto) => (
+                      <GridItem
+                        key={produto.id}
+                        bg="#E6B325"
+                        p={4}
+                        borderRadius="md"
+                        transition="all 0.3s"
+                        _hover={{ bg: "#D6A315" }}
+                      >
+                        <Flex direction="column" align="center">
+                          <Image
+                            src={produto.imagem || "/placeholder.svg"}
+                            alt={produto.nome}
+                            boxSize="100px"
+                            objectFit="cover"
+                            borderRadius="md"
+                            mb={3}
+                          />
+                          <Text fontWeight="bold" mb={1}>
+                            {produto.nome}
+                          </Text>
+                          <Text mb={3}>R$ {produto.preco.toFixed(2)}</Text>
 
-                        <Flex width="100%" justify="space-between" align="center">
-                          <Input
-                            placeholder="Observação"
-                            size="sm"
-                            value={observacaoItem[produto.id] || ""}
-                            onChange={(e) =>
-                              setObservacaoItem({
-                                ...observacaoItem,
-                                [produto.id]: e.target.value,
-                              })
-                            }
-                            bg="white"
-                            color="black"
-                            _placeholder={{ color: "gray.500" }}
-                          />
-                          <IconButton
-                            aria-label="Adicionar item"
-                            icon={<FiPlus />}
-                            size="sm"
-                            ml={2}
-                            bg="#C25B02"
-                            color="white"
-                            onClick={() => adicionarItem(produto)}
-                            _hover={{ bg: "#B24A01" }}
-                          />
+                          <Flex width="100%" justify="space-between" align="center">
+                            <Input
+                              placeholder="Observação"
+                              size="sm"
+                              value={observacaoItem[produto.id] || ""}
+                              onChange={(e) => {
+                                setObservacaoItem({
+                                  ...observacaoItem,
+                                  [produto.id]: e.target.value,
+                                })
+                                // Atualizar observação se o item já estiver no pedido
+                                const itemExistente = itensPedido.find((item) => item.produto.id === produto.id)
+                                if (itemExistente) {
+                                  atualizarObservacao(produto.id, e.target.value)
+                                }
+                              }}
+                              bg="white"
+                              color="black"
+                              _placeholder={{ color: "gray.500" }}
+                            />
+                            <IconButton
+                              aria-label="Adicionar item"
+                              icon={<FiPlus />}
+                              size="sm"
+                              ml={2}
+                              bg="#C25B02"
+                              color="white"
+                              onClick={() => adicionarItem(produto)}
+                              _hover={{ bg: "#B24A01" }}
+                            />
+                          </Flex>
                         </Flex>
-                      </Flex>
-                    </GridItem>
-                  ))}
+                      </GridItem>
+                    ))}
                 </Grid>
               </TabPanel>
 
@@ -366,7 +371,7 @@ const EditarPedidoPage = () => {
                     gap={4}
                   >
                     {produtos
-                      .filter((produto) => produto.categoria === categoria)
+                      .filter((produto) => produto.categoria === categoria && produto.ativo)
                       .map((produto) => (
                         <GridItem
                           key={produto.id}
@@ -395,12 +400,17 @@ const EditarPedidoPage = () => {
                                 placeholder="Observação"
                                 size="sm"
                                 value={observacaoItem[produto.id] || ""}
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setObservacaoItem({
                                     ...observacaoItem,
                                     [produto.id]: e.target.value,
                                   })
-                                }
+                                  // Atualizar observação se o item já estiver no pedido
+                                  const itemExistente = itensPedido.find((item) => item.produto.id === produto.id)
+                                  if (itemExistente) {
+                                    atualizarObservacao(produto.id, e.target.value)
+                                  }
+                                }}
                                 bg="white"
                                 color="black"
                                 _placeholder={{ color: "gray.500" }}
