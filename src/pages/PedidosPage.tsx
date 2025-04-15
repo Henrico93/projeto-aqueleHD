@@ -22,19 +22,21 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  Spinner,
 } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
-import { FiEdit, FiCreditCard, FiPlus, FiTrash2, FiSearch } from "react-icons/fi"
+import { FiEdit, FiCreditCard, FiPlus, FiTrash2, FiSearch, FiRefreshCw } from "react-icons/fi"
 import { useData, type Pedido } from "../context/DataContext"
 
 const PedidosPage = () => {
   const toast = useToast()
-  const { pedidos, updatePedido, deletePedido } = useData()
+  const { pedidos, updatePedido, deletePedido, refreshData } = useData()
   const { isOpen, onOpen, onClose } = useDisclosure()
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [filteredPedidos, setFilteredPedidos] = useState<Pedido[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<"todos" | "aberto" | "fechado">("todos")
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     let filtered = [...pedidos]
@@ -122,6 +124,30 @@ const PedidosPage = () => {
     return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
   }
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await refreshData()
+      toast({
+        title: "Dados atualizados",
+        description: "As comandas foram sincronizadas com o servidor",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      })
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível sincronizar com o servidor",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      })
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <Box maxW="1200px" mx="auto" p={4}>
       <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
@@ -186,6 +212,18 @@ const PedidosPage = () => {
           </InputGroup>
 
           <Button
+            leftIcon={<FiRefreshCw />}
+            onClick={handleRefresh}
+            isLoading={isRefreshing}
+            loadingText="Atualizando"
+            bg="gray.700"
+            color="white"
+            _hover={{ bg: "gray.600" }}
+          >
+            Atualizar
+          </Button>
+
+          <Button
             as={RouterLink}
             to="/novo-pedido"
             bg="#C25B02"
@@ -205,61 +243,67 @@ const PedidosPage = () => {
       </Flex>
 
       <Box bg="black" borderRadius="xl" p={4} overflow="hidden">
-        <VStack spacing={1} align="stretch">
-          {filteredPedidos.length > 0 ? (
-            filteredPedidos.map((pedido) => (
-              <Box
-                key={pedido.id}
-                bg="#E6B325"
-                p={3}
-                cursor="pointer"
-                onClick={() => handlePedidoClick(pedido)}
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
-                _hover={{ bg: "#D6A315" }}
-                transition="background 0.2s"
-              >
-                <Flex align="center" width="100%">
-                  <Box width="100px" pl={2}>
-                    <Text fontWeight="medium" color="black">
-                      Comanda #{pedido.id}
-                    </Text>
-                    <Text fontSize="xs" color="blackAlpha.700">
-                      {formatarHora(pedido.timestamp)}
-                    </Text>
-                  </Box>
-
-                  <Box flex="1">
-                    <Flex justify="space-between" align="center">
-                      <Text color="blackAlpha.800" fontWeight="medium">
-                        {pedido.cliente} • {pedido.mesa}
+        {isRefreshing ? (
+          <Flex justify="center" align="center" py={10}>
+            <Spinner color="#E6B325" size="xl" />
+          </Flex>
+        ) : (
+          <VStack spacing={1} align="stretch">
+            {filteredPedidos.length > 0 ? (
+              filteredPedidos.map((pedido) => (
+                <Box
+                  key={pedido.id}
+                  bg="#E6B325"
+                  p={3}
+                  cursor="pointer"
+                  onClick={() => handlePedidoClick(pedido)}
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  _hover={{ bg: "#D6A315" }}
+                  transition="background 0.2s"
+                >
+                  <Flex align="center" width="100%">
+                    <Box width="100px" pl={2}>
+                      <Text fontWeight="medium" color="black">
+                        Comanda #{pedido.id}
                       </Text>
-                      <Flex align="center" gap={2}>
-                        <Badge
-                          colorScheme={pedido.status === "aberto" ? "green" : "orange"}
-                          fontSize="xs"
-                          px={2}
-                          py={1}
-                          borderRadius="full"
-                        >
-                          {pedido.status === "aberto" ? "Aberta" : "Fechada"}
-                        </Badge>
-                        <Text fontWeight="bold" color="blackAlpha.800">
-                          R$ {calcularTotal(pedido).toFixed(2)}
+                      <Text fontSize="xs" color="blackAlpha.700">
+                        {formatarHora(pedido.timestamp)}
+                      </Text>
+                    </Box>
+
+                    <Box flex="1">
+                      <Flex justify="space-between" align="center">
+                        <Text color="blackAlpha.800" fontWeight="medium">
+                          {pedido.cliente} • {pedido.mesa}
                         </Text>
+                        <Flex align="center" gap={2}>
+                          <Badge
+                            colorScheme={pedido.status === "aberto" ? "green" : "orange"}
+                            fontSize="xs"
+                            px={2}
+                            py={1}
+                            borderRadius="full"
+                          >
+                            {pedido.status === "aberto" ? "Aberta" : "Fechada"}
+                          </Badge>
+                          <Text fontWeight="bold" color="blackAlpha.800">
+                            R$ {calcularTotal(pedido).toFixed(2)}
+                          </Text>
+                        </Flex>
                       </Flex>
-                    </Flex>
-                  </Box>
-                </Flex>
+                    </Box>
+                  </Flex>
+                </Box>
+              ))
+            ) : (
+              <Box p={4} textAlign="center">
+                <Text color="white">Nenhuma comanda encontrada</Text>
               </Box>
-            ))
-          ) : (
-            <Box p={4} textAlign="center">
-              <Text color="white">Nenhuma comanda encontrada</Text>
-            </Box>
-          )}
-        </VStack>
+            )}
+          </VStack>
+        )}
       </Box>
 
       {/* Modal de detalhes do pedido */}

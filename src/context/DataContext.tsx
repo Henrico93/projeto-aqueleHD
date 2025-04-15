@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
+import api from "../services/api"
 
 // Tipos para as entidades principais
 export interface Cliente {
@@ -76,21 +77,24 @@ interface DataContextType {
   pedidos: Pedido[]
   estoque: ItemEstoque[]
   vendas: Venda[]
-  addCliente: (cliente: Omit<Cliente, "id">) => Cliente
-  updateCliente: (cliente: Cliente) => void
-  getCliente: (id: string) => Cliente | undefined
+  loading: boolean
+  error: string | null
+  addCliente: (cliente: Omit<Cliente, "id">) => Promise<Cliente>
+  updateCliente: (cliente: Cliente) => Promise<void>
+  getCliente: (id: string) => Promise<Cliente | undefined>
   getClienteByNome: (nome: string) => Cliente | undefined
-  addProduto: (produto: Omit<Produto, "id">) => Produto
-  updateProduto: (produto: Produto) => void
-  deleteProduto: (id: number) => void
-  addPedido: (pedido: Omit<Pedido, "id">) => Pedido
-  updatePedido: (pedido: Pedido) => void
-  deletePedido: (id: number) => void
+  addProduto: (produto: Omit<Produto, "id">) => Promise<Produto>
+  updateProduto: (produto: Produto) => Promise<void>
+  deleteProduto: (id: number) => Promise<void>
+  addPedido: (pedido: Omit<Pedido, "id">) => Promise<Pedido>
+  updatePedido: (pedido: Pedido) => Promise<void>
+  deletePedido: (id: number) => Promise<void>
   getPedido: (id: number) => Pedido | undefined
-  addItemEstoque: (item: Omit<ItemEstoque, "id">) => ItemEstoque
-  updateItemEstoque: (item: ItemEstoque) => void
-  deleteItemEstoque: (id: number) => void
-  addVenda: (venda: Omit<Venda, "id">) => Venda
+  addItemEstoque: (item: Omit<ItemEstoque, "id">) => Promise<ItemEstoque>
+  updateItemEstoque: (item: ItemEstoque) => Promise<void>
+  deleteItemEstoque: (id: number) => Promise<void>
+  addVenda: (venda: Omit<Venda, "id">) => Promise<Venda>
+  refreshData: () => Promise<void>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -110,9 +114,61 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [estoque, setEstoque] = useState<ItemEstoque[]>([])
   const [vendas, setVendas] = useState<Venda[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Carrega dados salvos no localStorage ao iniciar
-  useEffect(() => {
+  // Função para carregar todos os dados da API
+  const refreshData = async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Carregar clientes
+      const clientesResponse = await api.get("/clientes")
+      setClientes(clientesResponse.data)
+
+      // Carregar produtos
+      const produtosResponse = await api.get("/produtos")
+      setProdutos(produtosResponse.data)
+
+      // Carregar pedidos
+      const pedidosResponse = await api.get("/pedidos")
+      // Converter strings de data para objetos Date
+      const pedidosFormatados = pedidosResponse.data.map((p: any) => ({
+        ...p,
+        timestamp: new Date(p.timestamp),
+      }))
+      setPedidos(pedidosFormatados)
+
+      // Carregar estoque
+      const estoqueResponse = await api.get("/estoque")
+      const estoqueFormatado = estoqueResponse.data.map((e: any) => ({
+        ...e,
+        ultimaAtualizacao: new Date(e.ultimaAtualizacao),
+      }))
+      setEstoque(estoqueFormatado)
+
+      // Carregar vendas
+      const vendasResponse = await api.get("/vendas")
+      const vendasFormatadas = vendasResponse.data.map((v: any) => ({
+        ...v,
+        data: new Date(v.data),
+      }))
+      setVendas(vendasFormatadas)
+
+      setLoading(false)
+    } catch (err: any) {
+      console.error("Erro ao carregar dados:", err)
+      setError(err.message || "Erro ao carregar dados da API")
+      setLoading(false)
+
+      // Carregar dados de fallback do localStorage se a API falhar
+      loadFromLocalStorage()
+    }
+  }
+
+  // Função para carregar dados do localStorage (fallback)
+  const loadFromLocalStorage = () => {
     const savedClientes = localStorage.getItem("clientes")
     const savedProdutos = localStorage.getItem("produtos")
     const savedPedidos = localStorage.getItem("pedidos")
@@ -229,149 +285,71 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProdutos(defaultProdutos)
       localStorage.setItem("produtos", JSON.stringify(defaultProdutos))
     }
+  }
 
-    // Se não houver pedidos salvos, inicialize com alguns pedidos de exemplo
-    if (!savedPedidos) {
-      const defaultPedidos: Pedido[] = [
-        {
-          id: 1,
-          mesa: "Mesa 1",
-          cliente: "João Silva",
-          itens: [
-            { nome: "Hot Dog Completo", quantidade: 2, preco: 12.0 },
-            { nome: "Refrigerante", quantidade: 1, preco: 6.0 },
-          ],
-          status: "aberto",
-          timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
-          valorTotal: 30.0,
-        },
-        {
-          id: 2,
-          mesa: "Mesa 3",
-          cliente: "Maria Oliveira",
-          itens: [
-            { nome: "Hot Dog Simples", quantidade: 1, preco: 10.0 },
-            { nome: "Água", quantidade: 1, preco: 4.0 },
-          ],
-          status: "aberto",
-          timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 minutos atrás
-          valorTotal: 14.0,
-        },
-      ]
-      setPedidos(defaultPedidos)
-      localStorage.setItem("pedidos", JSON.stringify(defaultPedidos))
-    }
-
-    // Se não houver estoque salvo, inicialize com alguns itens padrão
-    if (!savedEstoque) {
-      const defaultEstoque: ItemEstoque[] = [
-        {
-          id: 1,
-          produtoId: -1,
-          nome: "Pão para Hot Dog",
-          quantidade: 50,
-          unidade: "unidade",
-          precoUnitario: 1.5,
-          categoria: "Pães",
-          ultimaAtualizacao: new Date(),
-          estoqueMinimo: 20,
-        },
-        {
-          id: 2,
-          produtoId: -1,
-          nome: "Salsicha",
-          quantidade: 40,
-          unidade: "unidade",
-          precoUnitario: 2.0,
-          categoria: "Carnes",
-          ultimaAtualizacao: new Date(),
-          estoqueMinimo: 15,
-        },
-        {
-          id: 3,
-          produtoId: 5,
-          nome: "Refrigerante Lata",
-          quantidade: 24,
-          unidade: "unidade",
-          precoUnitario: 3.0,
-          categoria: "Bebidas",
-          ultimaAtualizacao: new Date(),
-          estoqueMinimo: 12,
-        },
-        {
-          id: 4,
-          produtoId: -1,
-          nome: "Batata Palito",
-          quantidade: 10,
-          unidade: "kg",
-          precoUnitario: 8.0,
-          categoria: "Acompanhamentos",
-          ultimaAtualizacao: new Date(),
-          estoqueMinimo: 5,
-        },
-        {
-          id: 5,
-          produtoId: -1,
-          nome: "Cebola",
-          quantidade: 5,
-          unidade: "kg",
-          precoUnitario: 3.0,
-          categoria: "Vegetais",
-          ultimaAtualizacao: new Date(),
-          estoqueMinimo: 2,
-        },
-        {
-          id: 6,
-          produtoId: -1,
-          nome: "Queijo Mussarela",
-          quantidade: 3,
-          unidade: "kg",
-          precoUnitario: 25.0,
-          categoria: "Laticínios",
-          ultimaAtualizacao: new Date(),
-          estoqueMinimo: 1,
-        },
-      ]
-      setEstoque(defaultEstoque)
-      localStorage.setItem("estoque", JSON.stringify(defaultEstoque))
-    }
+  // Carregar dados quando o componente for montado
+  useEffect(() => {
+    refreshData()
   }, [])
 
-  // Salva dados no localStorage quando houver alterações
+  // Salvar dados no localStorage como backup quando houver alterações
   useEffect(() => {
-    localStorage.setItem("clientes", JSON.stringify(clientes))
+    if (clientes.length > 0) localStorage.setItem("clientes", JSON.stringify(clientes))
   }, [clientes])
 
   useEffect(() => {
-    localStorage.setItem("produtos", JSON.stringify(produtos))
+    if (produtos.length > 0) localStorage.setItem("produtos", JSON.stringify(produtos))
   }, [produtos])
 
   useEffect(() => {
-    localStorage.setItem("pedidos", JSON.stringify(pedidos))
+    if (pedidos.length > 0) localStorage.setItem("pedidos", JSON.stringify(pedidos))
   }, [pedidos])
 
   useEffect(() => {
-    localStorage.setItem("estoque", JSON.stringify(estoque))
+    if (estoque.length > 0) localStorage.setItem("estoque", JSON.stringify(estoque))
   }, [estoque])
 
   useEffect(() => {
-    localStorage.setItem("vendas", JSON.stringify(vendas))
+    if (vendas.length > 0) localStorage.setItem("vendas", JSON.stringify(vendas))
   }, [vendas])
 
   // Funções para manipulação de clientes
-  const addCliente = (cliente: Omit<Cliente, "id">) => {
-    const id = `client_${Date.now()}`
-    const novoCliente = { ...cliente, id, historicoPedidos: [] }
-    setClientes([...clientes, novoCliente])
-    return novoCliente
+  const addCliente = async (cliente: Omit<Cliente, "id">) => {
+    try {
+      const response = await api.post("/clientes", cliente)
+      const novoCliente = response.data
+      setClientes([...clientes, novoCliente])
+      return novoCliente
+    } catch (err) {
+      console.error("Erro ao adicionar cliente:", err)
+      // Fallback para localStorage
+      const id = `client_${Date.now()}`
+      const novoCliente = { ...cliente, id, historicoPedidos: [] }
+      setClientes([...clientes, novoCliente])
+      return novoCliente
+    }
   }
 
-  const updateCliente = (cliente: Cliente) => {
-    setClientes(clientes.map((c) => (c.id === cliente.id ? cliente : c)))
+  const updateCliente = async (cliente: Cliente) => {
+    try {
+      await api.put(`/clientes/${cliente.id}`, cliente)
+      setClientes(clientes.map((c) => (c.id === cliente.id ? cliente : c)))
+    } catch (err) {
+      console.error("Erro ao atualizar cliente:", err)
+      // Fallback para localStorage
+      setClientes(clientes.map((c) => (c.id === cliente.id ? cliente : c)))
+    }
   }
 
-  const getCliente = (id: string) => {
-    return clientes.find((c) => c.id === id)
+  const getCliente = async (id: string) => {
+    try {
+      const response = await api.get(`/clientes/${id}`)
+      return response.data
+    } catch (err) {
+      console.error("Erro ao buscar cliente:", err)
+      // Fallback para localStorage
+      return clientes.find((c) => c.id === id)
+    }
   }
 
   const getClienteByNome = (nome: string) => {
@@ -379,48 +357,94 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   // Funções para manipulação de produtos
-  const addProduto = (produto: Omit<Produto, "id">) => {
-    const id = produtos.length > 0 ? Math.max(...produtos.map((p) => p.id)) + 1 : 1
-    const novoProduto = { ...produto, id }
-    setProdutos([...produtos, novoProduto])
-    return novoProduto
+  const addProduto = async (produto: Omit<Produto, "id">) => {
+    try {
+      const response = await api.post("/produtos", produto)
+      const novoProduto = response.data
+      setProdutos([...produtos, novoProduto])
+      return novoProduto
+    } catch (err) {
+      console.error("Erro ao adicionar produto:", err)
+      // Fallback para localStorage
+      const id = produtos.length > 0 ? Math.max(...produtos.map((p) => p.id)) + 1 : 1
+      const novoProduto = { ...produto, id }
+      setProdutos([...produtos, novoProduto])
+      return novoProduto
+    }
   }
 
-  const updateProduto = (produto: Produto) => {
-    setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
+  const updateProduto = async (produto: Produto) => {
+    try {
+      await api.put(`/produtos/${produto.id}`, produto)
+      setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
+    } catch (err) {
+      console.error("Erro ao atualizar produto:", err)
+      // Fallback para localStorage
+      setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
+    }
   }
 
-  const deleteProduto = (id: number) => {
-    setProdutos(produtos.filter((p) => p.id !== id))
+  const deleteProduto = async (id: number) => {
+    try {
+      await api.delete(`/produtos/${id}`)
+      setProdutos(produtos.filter((p) => p.id !== id))
+    } catch (err) {
+      console.error("Erro ao excluir produto:", err)
+      // Fallback para localStorage
+      setProdutos(produtos.filter((p) => p.id !== id))
+    }
   }
 
   // Funções para manipulação de pedidos
-  const addPedido = (pedido: Omit<Pedido, "id">) => {
-    const id = pedidos.length > 0 ? Math.max(...pedidos.map((p) => p.id)) + 1 : 1
-    const novoPedido = { ...pedido, id }
-    setPedidos([...pedidos, novoPedido])
+  const addPedido = async (pedido: Omit<Pedido, "id">) => {
+    try {
+      const response = await api.post("/pedidos", pedido)
+      const novoPedido = response.data
+      setPedidos([...pedidos, novoPedido])
 
-    // Se o pedido está associado a um cliente, atualize o histórico do cliente
-    if (pedido.clienteId) {
-      const cliente = clientes.find((c) => c.id === pedido.clienteId)
-      if (cliente) {
-        const updatedCliente = {
-          ...cliente,
-          historicoPedidos: [...(cliente.historicoPedidos || []), id],
+      // Se o pedido está associado a um cliente, atualize o histórico do cliente
+      if (pedido.clienteId) {
+        const cliente = clientes.find((c) => c.id === pedido.clienteId)
+        if (cliente) {
+          const updatedCliente = {
+            ...cliente,
+            historicoPedidos: [...(cliente.historicoPedidos || []), novoPedido.id],
+          }
+          updateCliente(updatedCliente)
         }
-        updateCliente(updatedCliente)
       }
+
+      return novoPedido
+    } catch (err) {
+      console.error("Erro ao adicionar pedido:", err)
+      // Fallback para localStorage
+      const id = pedidos.length > 0 ? Math.max(...pedidos.map((p) => p.id)) + 1 : 1
+      const novoPedido = { ...pedido, id }
+      setPedidos([...pedidos, novoPedido])
+      return novoPedido
     }
-
-    return novoPedido
   }
 
-  const updatePedido = (pedido: Pedido) => {
-    setPedidos(pedidos.map((p) => (p.id === pedido.id ? pedido : p)))
+  const updatePedido = async (pedido: Pedido) => {
+    try {
+      await api.put(`/pedidos/${pedido.id}`, pedido)
+      setPedidos(pedidos.map((p) => (p.id === pedido.id ? pedido : p)))
+    } catch (err) {
+      console.error("Erro ao atualizar pedido:", err)
+      // Fallback para localStorage
+      setPedidos(pedidos.map((p) => (p.id === pedido.id ? pedido : p)))
+    }
   }
 
-  const deletePedido = (id: number) => {
-    setPedidos(pedidos.filter((p) => p.id !== id))
+  const deletePedido = async (id: number) => {
+    try {
+      await api.delete(`/pedidos/${id}`)
+      setPedidos(pedidos.filter((p) => p.id !== id))
+    } catch (err) {
+      console.error("Erro ao excluir pedido:", err)
+      // Fallback para localStorage
+      setPedidos(pedidos.filter((p) => p.id !== id))
+    }
   }
 
   const getPedido = (id: number) => {
@@ -428,27 +452,59 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   // Funções para manipulação de estoque
-  const addItemEstoque = (item: Omit<ItemEstoque, "id">) => {
-    const id = estoque.length > 0 ? Math.max(...estoque.map((e) => e.id)) + 1 : 1
-    const novoItem = { ...item, id }
-    setEstoque([...estoque, novoItem])
-    return novoItem
+  const addItemEstoque = async (item: Omit<ItemEstoque, "id">) => {
+    try {
+      const response = await api.post("/estoque", item)
+      const novoItem = response.data
+      setEstoque([...estoque, novoItem])
+      return novoItem
+    } catch (err) {
+      console.error("Erro ao adicionar item ao estoque:", err)
+      // Fallback para localStorage
+      const id = estoque.length > 0 ? Math.max(...estoque.map((e) => e.id)) + 1 : 1
+      const novoItem = { ...item, id }
+      setEstoque([...estoque, novoItem])
+      return novoItem
+    }
   }
 
-  const updateItemEstoque = (item: ItemEstoque) => {
-    setEstoque(estoque.map((e) => (e.id === item.id ? item : e)))
+  const updateItemEstoque = async (item: ItemEstoque) => {
+    try {
+      await api.put(`/estoque/${item.id}`, item)
+      setEstoque(estoque.map((e) => (e.id === item.id ? item : e)))
+    } catch (err) {
+      console.error("Erro ao atualizar item do estoque:", err)
+      // Fallback para localStorage
+      setEstoque(estoque.map((e) => (e.id === item.id ? item : e)))
+    }
   }
 
-  const deleteItemEstoque = (id: number) => {
-    setEstoque(estoque.filter((e) => e.id !== id))
+  const deleteItemEstoque = async (id: number) => {
+    try {
+      await api.delete(`/estoque/${id}`)
+      setEstoque(estoque.filter((e) => e.id !== id))
+    } catch (err) {
+      console.error("Erro ao excluir item do estoque:", err)
+      // Fallback para localStorage
+      setEstoque(estoque.filter((e) => e.id !== id))
+    }
   }
 
   // Funções para manipulação de vendas
-  const addVenda = (venda: Omit<Venda, "id">) => {
-    const id = vendas.length > 0 ? Math.max(...vendas.map((v) => v.id)) + 1 : 1
-    const novaVenda = { ...venda, id }
-    setVendas([...vendas, novaVenda])
-    return novaVenda
+  const addVenda = async (venda: Omit<Venda, "id">) => {
+    try {
+      const response = await api.post("/vendas", venda)
+      const novaVenda = response.data
+      setVendas([...vendas, novaVenda])
+      return novaVenda
+    } catch (err) {
+      console.error("Erro ao adicionar venda:", err)
+      // Fallback para localStorage
+      const id = vendas.length > 0 ? Math.max(...vendas.map((v) => v.id)) + 1 : 1
+      const novaVenda = { ...venda, id }
+      setVendas([...vendas, novaVenda])
+      return novaVenda
+    }
   }
 
   const value = {
@@ -457,6 +513,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pedidos,
     estoque,
     vendas,
+    loading,
+    error,
     addCliente,
     updateCliente,
     getCliente,
@@ -472,6 +530,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateItemEstoque,
     deleteItemEstoque,
     addVenda,
+    refreshData,
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
