@@ -3,6 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import api from "../services/api"
+import { useToast } from "@chakra-ui/react"
 
 // Tipos para as entidades principais
 export interface Cliente {
@@ -12,6 +13,7 @@ export interface Cliente {
   historicoPedidos?: number[]
 }
 
+// Atualize a interface Produto para usar a nova estrutura de itensEstoque
 export interface Produto {
   id: number
   nome: string
@@ -95,6 +97,9 @@ interface DataContextType {
   deleteItemEstoque: (id: number) => Promise<void>
   addVenda: (venda: Omit<Venda, "id">) => Promise<Venda>
   refreshData: () => Promise<void>
+  atualizarEstoqueAposVenda: (
+    itensVendidos: Array<{ nome: string; quantidade: number; valorUnitario: number }>,
+  ) => Promise<void>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -116,6 +121,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [vendas, setVendas] = useState<Venda[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   // Função para carregar todos os dados da API
   const refreshData = async () => {
@@ -176,7 +182,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedVendas = localStorage.getItem("vendas")
 
     if (savedClientes) setClientes(JSON.parse(savedClientes))
-    if (savedProdutos) setProdutos(JSON.parse(savedProdutos))
+
+    if (savedProdutos) {
+      const parsedProdutos = JSON.parse(savedProdutos)
+      setProdutos(parsedProdutos)
+    }
+
     if (savedPedidos) {
       // Convertendo as strings de data para objetos Date
       const parsedPedidos = JSON.parse(savedPedidos)
@@ -357,30 +368,53 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   // Funções para manipulação de produtos
+  // Função para adicionar produto
   const addProduto = async (produto: Omit<Produto, "id">) => {
     try {
-      const response = await api.post("/produtos", produto)
+      const produtoParaEnviar = {
+        ...produto,
+      }
+
+      console.log("Enviando novo produto para o backend:", JSON.stringify(produtoParaEnviar, null, 2))
+
+      const response = await api.post("/produtos", produtoParaEnviar)
       const novoProduto = response.data
+      console.log("Produto recebido do backend após criação:", novoProduto)
       setProdutos([...produtos, novoProduto])
       return novoProduto
     } catch (err) {
       console.error("Erro ao adicionar produto:", err)
       // Fallback para localStorage
       const id = produtos.length > 0 ? Math.max(...produtos.map((p) => p.id)) + 1 : 1
-      const novoProduto = { ...produto, id }
+      const novoProduto = {
+        ...produto,
+        id,
+      }
       setProdutos([...produtos, novoProduto])
       return novoProduto
     }
   }
 
+  // Função para atualizar produto
   const updateProduto = async (produto: Produto) => {
     try {
-      await api.put(`/produtos/${produto.id}`, produto)
-      setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
+      const produtoParaEnviar = {
+        ...produto,
+      }
+
+      console.log("Enviando produto atualizado para o backend:", JSON.stringify(produtoParaEnviar, null, 2))
+
+      const response = await api.put(`/produtos/${produto.id}`, produtoParaEnviar)
+      const produtoAtualizado = response.data
+      console.log("Produto recebido do backend após atualização:", produtoAtualizado)
+      setProdutos(produtos.map((p) => (p.id === produto.id ? produtoAtualizado : p)))
     } catch (err) {
       console.error("Erro ao atualizar produto:", err)
       // Fallback para localStorage
-      setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
+      const produtoAtualizado = {
+        ...produto,
+      }
+      setProdutos(produtos.map((p) => (p.id === produto.id ? produtoAtualizado : p)))
     }
   }
 
@@ -490,11 +524,77 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  // Função para atualizar o estoque após uma venda
+  const atualizarEstoqueAposVenda = async (
+    itensVendidos: Array<{ nome: string; quantidade: number; valorUnitario: number }>,
+  ) => {
+    try {
+      // Para cada item vendido, encontrar o produto correspondente
+      for (const itemVendido of itensVendidos) {
+        console.log(`Processando item vendido: ${itemVendido.nome} (${itemVendido.quantidade} unidades)`)
+
+        // Encontrar o produto pelo nome
+        const produto = produtos.find((p) => p.nome === itemVendido.nome)
+
+        if (produto) {
+          console.log(`Produto encontrado: ${produto.nome} (ID: ${produto.id})`)
+
+          // Buscar itens de estoque associados a este produto
+          const itensEstoqueDoProduto = estoque.filter((item) => item.produtoId === produto.id)
+
+          console.log(`Itens de estoque associados: ${itensEstoqueDoProduto.length}`)
+
+          // Para cada item de estoque associado ao produto, reduzir a quantidade
+          for (const itemEstoque of itensEstoqueDoProduto) {
+            // Reduzir a quantidade do estoque de acordo com a quantidade vendida
+            const novaQuantidade = Math.max(0, itemEstoque.quantidade - itemVendido.quantidade)
+
+            console.log(`Atualizando estoque de ${itemEstoque.nome}: ${itemEstoque.quantidade} -> ${novaQuantidade}`)
+
+            // Atualizar o item de estoque
+            const itemAtualizado = {
+              ...itemEstoque,
+              quantidade: novaQuantidade,
+              ultimaAtualizacao: new Date(),
+            }
+
+            // Enviar para a API
+            await api.put(`/estoque/${itemEstoque.id}`, itemAtualizado)
+
+            // Atualizar o estado local
+            await updateItemEstoque(itemAtualizado)
+
+            // Notificar se o estoque ficou abaixo do mínimo
+            if (novaQuantidade <= itemEstoque.estoqueMinimo && itemEstoque.quantidade > itemEstoque.estoqueMinimo) {
+              toast({
+                title: "Alerta de Estoque",
+                description: `O item "${itemEstoque.nome}" está abaixo do nível mínimo (${itemEstoque.estoqueMinimo})`,
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+              })
+            }
+          }
+        } else {
+          console.log(`Produto não encontrado para o item: ${itemVendido.nome}`)
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar estoque após venda:", err)
+    }
+  }
+
   // Funções para manipulação de vendas
   const addVenda = async (venda: Omit<Venda, "id">) => {
     try {
       const response = await api.post("/vendas", venda)
       const novaVenda = response.data
+
+      // Atualizar o estoque com base nos itens vendidos
+      if (venda.itensVendidos && venda.itensVendidos.length > 0) {
+        await atualizarEstoqueAposVenda(venda.itensVendidos)
+      }
+
       setVendas([...vendas, novaVenda])
       return novaVenda
     } catch (err) {
@@ -503,6 +603,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const id = vendas.length > 0 ? Math.max(...vendas.map((v) => v.id)) + 1 : 1
       const novaVenda = { ...venda, id }
       setVendas([...vendas, novaVenda])
+
+      // Mesmo com erro na API, tenta atualizar o estoque
+      if (venda.itensVendidos && venda.itensVendidos.length > 0) {
+        await atualizarEstoqueAposVenda(venda.itensVendidos)
+      }
+
       return novaVenda
     }
   }
@@ -531,6 +637,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteItemEstoque,
     addVenda,
     refreshData,
+    atualizarEstoqueAposVenda,
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
