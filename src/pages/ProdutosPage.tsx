@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import {
   Box,
   Button,
@@ -46,11 +46,23 @@ import {
   Divider,
 } from "@chakra-ui/react"
 import { FiEdit2, FiPlusCircle, FiTrash2, FiSearch, FiRefreshCw, FiPackage, FiLink } from "react-icons/fi"
-import { useData, type Produto, type ItemEstoque } from "../context/DataContext"
-import api from "../services/api"
+import { useData, type Produto } from "../context/DataContext"
 
 const ProdutosPage = () => {
-  const { produtos, addProduto, updateProduto, deleteProduto, estoque, updateItemEstoque, refreshData } = useData()
+  const {
+    produtos,
+    addProduto,
+    updateProduto,
+    deleteProduto,
+    estoque,
+    refreshData,
+    associarItemEstoqueProduto,
+    desassociarItemEstoqueProduto,
+    atualizarQuantidadeItemEstoqueProduto,
+    getItensEstoqueProduto,
+    getItensEstoqueDisponiveis,
+    getProdutoComItensEstoque,
+  } = useData()
   const toast = useToast()
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isOpenEstoque, onOpen: onOpenEstoque, onClose: onCloseEstoque } = useDisclosure()
@@ -67,10 +79,9 @@ const ProdutosPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>("todas")
   const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null)
-  const [itensEstoqueProduto, setItensEstoqueProduto] = useState<ItemEstoque[]>([])
-  const [itensEstoqueDisponiveis, setItensEstoqueDisponiveis] = useState<ItemEstoque[]>([])
-  const [itemEstoqueSelecionado, setItemEstoqueSelecionado] = useState<ItemEstoque | null>(null)
-  const [filtroItensEstoque, setFiltroItensEstoque] = useState("")
+  const [itemEstoqueSelecionado, setItemEstoqueSelecionado] = useState<number | null>(null)
+  const [quantidadeItem, setQuantidadeItem] = useState<number>(1)
+  const [filtroEstoque, setFiltroEstoque] = useState("")
 
   const initialRef = useRef(null)
 
@@ -84,15 +95,18 @@ const ProdutosPage = () => {
     return matchesSearch && matchesCategoria
   })
 
-  // Função para buscar itens de estoque relacionados a um produto
-  const buscarItensEstoqueProduto = (produtoId: number) => {
-    return estoque.filter((item) => item.produtoId === produtoId)
-  }
+  // Filtrar itens de estoque
+  const filteredEstoque = estoque.filter((item) => item.nome.toLowerCase().includes(filtroEstoque.toLowerCase()))
 
-  // Função para buscar itens de estoque disponíveis (não associados a nenhum produto)
-  const buscarItensEstoqueDisponiveis = () => {
-    return estoque.filter((item) => item.produtoId === -1 || item.produtoId === 0)
-  }
+  // Forçar atualização quando os produtos mudarem
+  useEffect(() => {
+    if (produtoSelecionado) {
+      const produtoAtualizado = getProdutoComItensEstoque(produtoSelecionado.id)
+      if (produtoAtualizado) {
+        setProdutoSelecionado(produtoAtualizado)
+      }
+    }
+  }, [produtos, getProdutoComItensEstoque, produtoSelecionado])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -186,16 +200,15 @@ const ProdutosPage = () => {
   }
 
   const handleOpenEstoqueModal = (produto: Produto) => {
-    setProdutoSelecionado(produto)
+    console.log("Abrindo modal de estoque para o produto:", produto)
 
-    // Buscar itens de estoque relacionados ao produto
-    const itensProduto = buscarItensEstoqueProduto(produto.id)
-    setItensEstoqueProduto(itensProduto)
+    // Obter o produto com seus itens de estoque
+    const produtoCompleto = getProdutoComItensEstoque(produto.id)
 
-    // Buscar itens de estoque disponíveis
-    const itensDisponiveis = buscarItensEstoqueDisponiveis()
-    setItensEstoqueDisponiveis(itensDisponiveis)
-
+    setProdutoSelecionado(produtoCompleto || produto)
+    setItemEstoqueSelecionado(null)
+    setQuantidadeItem(1)
+    setFiltroEstoque("")
     onOpenEstoque()
   }
 
@@ -203,38 +216,36 @@ const ProdutosPage = () => {
     if (!itemEstoqueSelecionado || !produtoSelecionado) return
 
     try {
-      // Atualizar o produtoId do item de estoque
-      const itemAtualizado = {
-        ...itemEstoqueSelecionado,
-        produtoId: produtoSelecionado.id,
-        ultimaAtualizacao: new Date(),
-      }
+      console.log(
+        `Associando item ${itemEstoqueSelecionado} ao produto ${produtoSelecionado.id} com quantidade ${quantidadeItem}`,
+      )
 
-      // Enviar para a API
-      await api.put(`/estoque/${itemEstoqueSelecionado.id}`, itemAtualizado)
-
-      // Atualizar o estado local
-      await updateItemEstoque(itemAtualizado)
-
-      // Atualizar as listas
-      setItensEstoqueProduto([...itensEstoqueProduto, itemAtualizado])
-      setItensEstoqueDisponiveis(itensEstoqueDisponiveis.filter((item) => item.id !== itemEstoqueSelecionado.id))
-
-      // Limpar seleção
-      setItemEstoqueSelecionado(null)
+      const produtoAtualizado = await associarItemEstoqueProduto(
+        produtoSelecionado.id,
+        itemEstoqueSelecionado,
+        quantidadeItem,
+      )
+      console.log("Produto atualizado após associação:", produtoAtualizado)
 
       toast({
         title: "Item associado",
-        description: `${itemAtualizado.nome} foi associado ao produto ${produtoSelecionado.nome}.`,
+        description: `Item de estoque associado ao produto ${produtoSelecionado.nome}.`,
         status: "success",
         duration: 3000,
         isClosable: true,
       })
-    } catch (err) {
-      console.error("Erro ao associar item de estoque:", err)
+
+      // Resetar seleção
+      setItemEstoqueSelecionado(null)
+      setQuantidadeItem(1)
+
+      // Atualizar produto selecionado
+      setProdutoSelecionado(produtoAtualizado)
+    } catch (err: any) {
+      console.error("Erro ao associar item:", err)
       toast({
         title: "Erro",
-        description: "Não foi possível associar o item de estoque ao produto.",
+        description: err.message || "Não foi possível associar o item de estoque ao produto.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -242,37 +253,30 @@ const ProdutosPage = () => {
     }
   }
 
-  const handleDesassociarItemEstoque = async (item: ItemEstoque) => {
+  const handleDesassociarItemEstoque = async (itemId: number) => {
+    if (!produtoSelecionado) return
+
     try {
-      // Atualizar o produtoId do item de estoque para -1 (não associado)
-      const itemAtualizado = {
-        ...item,
-        produtoId: -1,
-        ultimaAtualizacao: new Date(),
-      }
+      console.log(`Desassociando item ${itemId} do produto ${produtoSelecionado.id}`)
 
-      // Enviar para a API
-      await api.put(`/estoque/${item.id}`, itemAtualizado)
-
-      // Atualizar o estado local
-      await updateItemEstoque(itemAtualizado)
-
-      // Atualizar as listas
-      setItensEstoqueProduto(itensEstoqueProduto.filter((i) => i.id !== item.id))
-      setItensEstoqueDisponiveis([...itensEstoqueDisponiveis, itemAtualizado])
+      const produtoAtualizado = await desassociarItemEstoqueProduto(produtoSelecionado.id, itemId)
+      console.log("Produto atualizado após desassociação:", produtoAtualizado)
 
       toast({
         title: "Item desassociado",
-        description: `${itemAtualizado.nome} foi desassociado do produto.`,
+        description: "Item de estoque desassociado do produto.",
         status: "success",
         duration: 3000,
         isClosable: true,
       })
-    } catch (err) {
-      console.error("Erro ao desassociar item de estoque:", err)
+
+      // Atualizar produto selecionado
+      setProdutoSelecionado(produtoAtualizado)
+    } catch (err: any) {
+      console.error("Erro ao desassociar item:", err)
       toast({
         title: "Erro",
-        description: "Não foi possível desassociar o item de estoque do produto.",
+        description: err.message || "Não foi possível desassociar o item de estoque do produto.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -280,44 +284,65 @@ const ProdutosPage = () => {
     }
   }
 
-  const verificarRelacaoEstoqueProduto = async (produtoId: number) => {
+  const handleAtualizarQuantidade = async (itemId: number, quantidade: number) => {
+    if (!produtoSelecionado) return
+
     try {
-      console.log(`Verificando relação de estoque do produto ${produtoId}...`)
+      console.log(`Atualizando quantidade do item ${itemId} para ${quantidade} no produto ${produtoSelecionado.id}`)
 
-      // Buscar itens de estoque relacionados ao produto
-      const itensRelacionados = estoque.filter((item) => item.produtoId === produtoId)
+      const produtoAtualizado = await atualizarQuantidadeItemEstoqueProduto(produtoSelecionado.id, itemId, quantidade)
+      console.log("Produto atualizado após atualização de quantidade:", produtoAtualizado)
 
-      if (itensRelacionados.length > 0) {
-        const itensInfo = itensRelacionados
-          .map((item) => `${item.nome} (${item.quantidade} ${item.unidade}s)`)
-          .join(", ")
+      toast({
+        title: "Quantidade atualizada",
+        description: "Quantidade do item atualizada com sucesso.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      })
 
-        toast({
-          title: "Relação encontrada",
-          description: `O produto possui ${itensRelacionados.length} itens de estoque: ${itensInfo}`,
-          status: "success",
-          duration: 5000,
-          isClosable: true,
-        })
-      } else {
-        toast({
-          title: "Sem relação",
-          description: "Este produto não possui itens de estoque associados.",
-          status: "warning",
-          duration: 5000,
-          isClosable: true,
-        })
-      }
-    } catch (err) {
-      console.error("Erro ao verificar relação:", err)
+      // Atualizar produto selecionado
+      setProdutoSelecionado(produtoAtualizado)
+    } catch (err: any) {
+      console.error("Erro ao atualizar quantidade:", err)
       toast({
         title: "Erro",
-        description: "Não foi possível verificar a relação com estoque.",
+        description: err.message || "Não foi possível atualizar a quantidade do item.",
         status: "error",
-        duration: 5000,
+        duration: 3000,
         isClosable: true,
       })
     }
+  }
+
+  const verificarRelacaoEstoqueProduto = (produtoId: number) => {
+    const produto = getProdutoComItensEstoque(produtoId)
+
+    if (!produto || !produto.itensEstoque || produto.itensEstoque.length === 0) {
+      toast({
+        title: "Sem relação",
+        description: "Este produto não possui itens de estoque associados.",
+        status: "warning",
+        duration: 5000,
+        isClosable: true,
+      })
+      return
+    }
+
+    const itensInfo = produto.itensEstoque
+      .map((associacao) => {
+        const item = estoque.find((i) => i.id === associacao.itemId)
+        return item ? `${item.nome} (${associacao.quantidade} por produto)` : `Item #${associacao.itemId}`
+      })
+      .join(", ")
+
+    toast({
+      title: "Relação encontrada",
+      description: `O produto possui ${produto.itensEstoque.length} itens de estoque: ${itensInfo}`,
+      status: "success",
+      duration: 5000,
+      isClosable: true,
+    })
   }
 
   return (
@@ -406,8 +431,9 @@ const ProdutosPage = () => {
 
       <Grid templateColumns={{ base: "repeat(1, 1fr)", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={6}>
         {filteredProdutos.map((produto) => {
-          // Buscar itens de estoque relacionados ao produto
-          const itensRelacionados = buscarItensEstoqueProduto(produto.id)
+          // Obter o produto com seus itens de estoque
+          const produtoCompleto = getProdutoComItensEstoque(produto.id)
+          const itensEstoque = produtoCompleto?.itensEstoque || []
 
           return (
             <GridItem key={produto.id}>
@@ -436,22 +462,25 @@ const ProdutosPage = () => {
                   </Text>
 
                   {/* Exibir itens de estoque relacionados */}
-                  {itensRelacionados.length > 0 ? (
+                  {itensEstoque.length > 0 ? (
                     <Box bg="whiteAlpha.100" p={2} borderRadius="md" mb={4}>
                       <Text color="#E6B325" fontSize="sm" mb={1}>
                         Itens de Estoque:
                       </Text>
                       <VStack align="stretch" spacing={1}>
-                        {itensRelacionados.map((item) => (
-                          <Flex key={item.id} justify="space-between">
-                            <Text color="white" fontSize="sm">
-                              {item.nome}
-                            </Text>
-                            <Text color="white" fontSize="sm">
-                              {item.quantidade} {item.unidade}(s)
-                            </Text>
-                          </Flex>
-                        ))}
+                        {itensEstoque.map((associacao) => {
+                          const item = estoque.find((i) => i.id === associacao.itemId)
+                          return item ? (
+                            <Flex key={associacao.itemId} justify="space-between">
+                              <Text color="white" fontSize="sm">
+                                {item.nome}
+                              </Text>
+                              <Text color="white" fontSize="sm">
+                                {associacao.quantidade} por produto
+                              </Text>
+                            </Flex>
+                          ) : null
+                        })}
                       </VStack>
                     </Box>
                   ) : (
@@ -592,30 +621,54 @@ const ProdutosPage = () => {
           <ModalCloseButton color="white" />
           <ModalBody pb={6}>
             <VStack spacing={4} align="stretch">
-              <Flex gap={4}>
-                <FormControl flex="3">
+              <Flex gap={4} direction={{ base: "column", md: "row" }}>
+                <Box flex="3">
                   <FormLabel color="white">Associar Item de Estoque</FormLabel>
+                  <InputGroup mb={2}>
+                    <InputLeftElement pointerEvents="none">
+                      <FiSearch color="gray.300" />
+                    </InputLeftElement>
+                    <Input
+                      placeholder="Filtrar itens de estoque..."
+                      value={filtroEstoque}
+                      onChange={(e) => setFiltroEstoque(e.target.value)}
+                      bg="whiteAlpha.100"
+                      color="white"
+                    />
+                  </InputGroup>
                   <Select
                     placeholder="Selecione um item disponível"
                     bg="whiteAlpha.100"
                     color="white"
-                    onChange={(e) => {
-                      const item = estoque.find((i) => i.id === Number(e.target.value))
-                      setItemEstoqueSelecionado(item || null)
-                    }}
-                    value={itemEstoqueSelecionado?.id || ""}
+                    onChange={(e) => setItemEstoqueSelecionado(Number(e.target.value))}
+                    value={itemEstoqueSelecionado || ""}
                   >
-                    {itensEstoqueDisponiveis.map((item) => (
+                    {filteredEstoque.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.nome} ({item.quantidade} {item.unidade}s disponíveis)
                       </option>
                     ))}
                   </Select>
-                </FormControl>
-
+                </Box>
+                <Box>
+                  <FormLabel color="white">Quantidade</FormLabel>
+                  <NumberInput
+                    min={1}
+                    value={quantidadeItem}
+                    onChange={(value) => setQuantidadeItem(Number(value))}
+                    bg="whiteAlpha.100"
+                    color="white"
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper color="white" />
+                      <NumberDecrementStepper color="white" />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </Box>
                 <Button
                   colorScheme="blue"
-                  alignSelf="flex-end"
+                  alignSelf={{ base: "flex-start", md: "flex-end" }}
                   onClick={handleAssociarItemEstoque}
                   isDisabled={!itemEstoqueSelecionado}
                 >
@@ -629,37 +682,57 @@ const ProdutosPage = () => {
                 <Heading size="sm" color="#E6B325" mb={2}>
                   Itens Associados a este Produto
                 </Heading>
-                {itensEstoqueProduto.length > 0 ? (
+                {produtoSelecionado && produtoSelecionado.itensEstoque && produtoSelecionado.itensEstoque.length > 0 ? (
                   <Table variant="simple" colorScheme="whiteAlpha" size="sm">
                     <Thead>
                       <Tr>
                         <Th color="#E6B325">Item</Th>
                         <Th color="#E6B325" isNumeric>
-                          Quantidade
+                          Qtd. Disponível
                         </Th>
-                        <Th color="#E6B325">Unidade</Th>
+                        <Th color="#E6B325" isNumeric>
+                          Qtd. por Produto
+                        </Th>
                         <Th color="#E6B325" width="80px"></Th>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {itensEstoqueProduto.map((item) => (
-                        <Tr key={item.id}>
-                          <Td color="white">{item.nome}</Td>
-                          <Td color="white" isNumeric>
-                            {item.quantidade}
-                          </Td>
-                          <Td color="white">{item.unidade}</Td>
-                          <Td>
-                            <IconButton
-                              aria-label="Desassociar item"
-                              icon={<FiTrash2 />}
-                              size="xs"
-                              colorScheme="red"
-                              onClick={() => handleDesassociarItemEstoque(item)}
-                            />
-                          </Td>
-                        </Tr>
-                      ))}
+                      {produtoSelecionado.itensEstoque.map((associacao) => {
+                        const item = estoque.find((i) => i.id === associacao.itemId)
+                        return item ? (
+                          <Tr key={associacao.itemId}>
+                            <Td color="white">{item.nome}</Td>
+                            <Td color="white" isNumeric>
+                              {item.quantidade} {item.unidade}(s)
+                            </Td>
+                            <Td>
+                              <NumberInput
+                                min={1}
+                                size="xs"
+                                value={associacao.quantidade}
+                                onChange={(value) => handleAtualizarQuantidade(associacao.itemId, Number(value))}
+                                bg="whiteAlpha.200"
+                                color="white"
+                              >
+                                <NumberInputField textAlign="center" />
+                                <NumberInputStepper>
+                                  <NumberIncrementStepper color="white" />
+                                  <NumberDecrementStepper color="white" />
+                                </NumberInputStepper>
+                              </NumberInput>
+                            </Td>
+                            <Td>
+                              <IconButton
+                                aria-label="Desassociar item"
+                                icon={<FiTrash2 />}
+                                size="xs"
+                                colorScheme="red"
+                                onClick={() => handleDesassociarItemEstoque(associacao.itemId)}
+                              />
+                            </Td>
+                          </Tr>
+                        ) : null
+                      })}
                     </Tbody>
                   </Table>
                 ) : (

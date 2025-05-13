@@ -13,7 +13,7 @@ export interface Cliente {
   historicoPedidos?: number[]
 }
 
-// Atualize a interface Produto para usar a nova estrutura de itensEstoque
+// Atualize a interface Produto para incluir itensEstoque
 export interface Produto {
   id: number
   nome: string
@@ -21,6 +21,10 @@ export interface Produto {
   imagem: string
   categoria: string
   ativo: boolean
+  itensEstoque?: Array<{
+    itemId: number
+    quantidade: number
+  }>
 }
 
 export interface ItemPedido {
@@ -31,7 +35,6 @@ export interface ItemPedido {
 
 export interface ItemEstoque {
   id: number
-  produtoId: number
   nome: string
   quantidade: number
   unidade: string
@@ -73,6 +76,13 @@ export interface Venda {
   }>
 }
 
+// Interface para armazenar as relações produto-estoque localmente
+export interface ProdutoEstoqueRelacao {
+  produtoId: number
+  itemId: number
+  quantidade: number
+}
+
 interface DataContextType {
   clientes: Cliente[]
   produtos: Produto[]
@@ -100,6 +110,13 @@ interface DataContextType {
   atualizarEstoqueAposVenda: (
     itensVendidos: Array<{ nome: string; quantidade: number; valorUnitario: number }>,
   ) => Promise<void>
+  // Novas funções para gerenciar a relação entre produtos e itens de estoque
+  associarItemEstoqueProduto: (produtoId: number, itemId: number, quantidade: number) => Promise<Produto>
+  desassociarItemEstoqueProduto: (produtoId: number, itemId: number) => Promise<Produto>
+  atualizarQuantidadeItemEstoqueProduto: (produtoId: number, itemId: number, quantidade: number) => Promise<Produto>
+  getItensEstoqueProduto: (produtoId: number) => Array<{ itemId: number; quantidade: number }>
+  getItensEstoqueDisponiveis: () => ItemEstoque[]
+  getProdutoComItensEstoque: (produtoId: number) => Produto | undefined
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -121,6 +138,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [vendas, setVendas] = useState<Venda[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  // Estado para armazenar as relações produto-estoque localmente
+  const [relacoesEstoque, setRelacoesEstoque] = useState<ProdutoEstoqueRelacao[]>([])
   const toast = useToast()
 
   // Função para carregar todos os dados da API
@@ -135,7 +154,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Carregar produtos
       const produtosResponse = await api.get("/produtos")
-      setProdutos(produtosResponse.data)
+      console.log("Produtos carregados da API:", produtosResponse.data)
+
+      // Carregar as relações do localStorage
+      const savedRelacoes = localStorage.getItem("produtoEstoqueRelacoes")
+      const relacoes = savedRelacoes ? JSON.parse(savedRelacoes) : []
+      setRelacoesEstoque(relacoes)
+
+      // Adicionar as relações aos produtos
+      const produtosComRelacoes = produtosResponse.data.map((produto: Produto) => {
+        const relacoesDosProduto = relacoes.filter((rel: ProdutoEstoqueRelacao) => rel.produtoId === produto.id)
+        return {
+          ...produto,
+          itensEstoque: relacoesDosProduto.map((rel: ProdutoEstoqueRelacao) => ({
+            itemId: rel.itemId,
+            quantidade: rel.quantidade,
+          })),
+        }
+      })
+
+      setProdutos(produtosComRelacoes)
+      console.log("Produtos com relações:", produtosComRelacoes)
 
       // Carregar pedidos
       const pedidosResponse = await api.get("/pedidos")
@@ -180,12 +219,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedPedidos = localStorage.getItem("pedidos")
     const savedEstoque = localStorage.getItem("estoque")
     const savedVendas = localStorage.getItem("vendas")
+    const savedRelacoes = localStorage.getItem("produtoEstoqueRelacoes")
 
     if (savedClientes) setClientes(JSON.parse(savedClientes))
 
     if (savedProdutos) {
       const parsedProdutos = JSON.parse(savedProdutos)
-      setProdutos(parsedProdutos)
+
+      // Adicionar as relações aos produtos
+      if (savedRelacoes) {
+        const relacoes = JSON.parse(savedRelacoes)
+        setRelacoesEstoque(relacoes)
+
+        const produtosComRelacoes = parsedProdutos.map((produto: Produto) => {
+          const relacoesDosProduto = relacoes.filter((rel: ProdutoEstoqueRelacao) => rel.produtoId === produto.id)
+          return {
+            ...produto,
+            itensEstoque: relacoesDosProduto.map((rel: ProdutoEstoqueRelacao) => ({
+              itemId: rel.itemId,
+              quantidade: rel.quantidade,
+            })),
+          }
+        })
+
+        setProdutos(produtosComRelacoes)
+      } else {
+        setProdutos(parsedProdutos)
+      }
     }
 
     if (savedPedidos) {
@@ -227,6 +287,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Hot Dogs",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 2,
@@ -235,6 +296,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Hot Dogs",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 3,
@@ -243,6 +305,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Hot Dogs",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 4,
@@ -251,6 +314,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Hot Dogs",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 5,
@@ -259,6 +323,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Bebidas",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 6,
@@ -267,6 +332,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Bebidas",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 7,
@@ -275,6 +341,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Bebidas",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 8,
@@ -283,6 +350,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Acompanhamentos",
           ativo: true,
+          itensEstoque: [],
         },
         {
           id: 9,
@@ -291,12 +359,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           imagem: "/placeholder.svg?height=100&width=100",
           categoria: "Acompanhamentos",
           ativo: true,
+          itensEstoque: [],
         },
       ]
       setProdutos(defaultProdutos)
       localStorage.setItem("produtos", JSON.stringify(defaultProdutos))
     }
   }
+
+  // Salvar relações no localStorage quando houver alterações
+  useEffect(() => {
+    if (relacoesEstoque.length > 0) {
+      localStorage.setItem("produtoEstoqueRelacoes", JSON.stringify(relacoesEstoque))
+    }
+  }, [relacoesEstoque])
 
   // Carregar dados quando o componente for montado
   useEffect(() => {
@@ -371,17 +447,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Função para adicionar produto
   const addProduto = async (produto: Omit<Produto, "id">) => {
     try {
-      const produtoParaEnviar = {
-        ...produto,
-      }
+      // Remover itensEstoque antes de enviar para o backend
+      const { itensEstoque, ...produtoSemItens } = produto as any
 
-      console.log("Enviando novo produto para o backend:", JSON.stringify(produtoParaEnviar, null, 2))
+      console.log("Enviando novo produto para o backend:", JSON.stringify(produtoSemItens, null, 2))
 
-      const response = await api.post("/produtos", produtoParaEnviar)
+      const response = await api.post("/produtos", produtoSemItens)
       const novoProduto = response.data
       console.log("Produto recebido do backend após criação:", novoProduto)
-      setProdutos([...produtos, novoProduto])
-      return novoProduto
+
+      // Adicionar itensEstoque de volta ao produto
+      const produtoCompleto = {
+        ...novoProduto,
+        itensEstoque: produto.itensEstoque || [],
+      }
+
+      setProdutos([...produtos, produtoCompleto])
+      return produtoCompleto
     } catch (err) {
       console.error("Erro ao adicionar produto:", err)
       // Fallback para localStorage
@@ -389,6 +471,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const novoProduto = {
         ...produto,
         id,
+        itensEstoque: produto.itensEstoque || [],
       }
       setProdutos([...produtos, novoProduto])
       return novoProduto
@@ -398,23 +481,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Função para atualizar produto
   const updateProduto = async (produto: Produto) => {
     try {
-      const produtoParaEnviar = {
-        ...produto,
-      }
+      // Remover itensEstoque antes de enviar para o backend
+      const { itensEstoque, ...produtoSemItens } = produto as any
 
-      console.log("Enviando produto atualizado para o backend:", JSON.stringify(produtoParaEnviar, null, 2))
+      console.log("Enviando produto atualizado para o backend:", JSON.stringify(produtoSemItens, null, 2))
 
-      const response = await api.put(`/produtos/${produto.id}`, produtoParaEnviar)
+      const response = await api.put(`/produtos/${produto.id}`, produtoSemItens)
       const produtoAtualizado = response.data
       console.log("Produto recebido do backend após atualização:", produtoAtualizado)
-      setProdutos(produtos.map((p) => (p.id === produto.id ? produtoAtualizado : p)))
+
+      // Adicionar itensEstoque de volta ao produto
+      const produtoCompleto = {
+        ...produtoAtualizado,
+        itensEstoque: produto.itensEstoque || [],
+      }
+
+      setProdutos(produtos.map((p) => (p.id === produto.id ? produtoCompleto : p)))
     } catch (err) {
       console.error("Erro ao atualizar produto:", err)
       // Fallback para localStorage
-      const produtoAtualizado = {
-        ...produto,
-      }
-      setProdutos(produtos.map((p) => (p.id === produto.id ? produtoAtualizado : p)))
+      setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
     }
   }
 
@@ -422,10 +508,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.delete(`/produtos/${id}`)
       setProdutos(produtos.filter((p) => p.id !== id))
+
+      // Remover todas as relações deste produto
+      setRelacoesEstoque(relacoesEstoque.filter((rel) => rel.produtoId !== id))
     } catch (err) {
       console.error("Erro ao excluir produto:", err)
       // Fallback para localStorage
       setProdutos(produtos.filter((p) => p.id !== id))
+
+      // Remover todas as relações deste produto
+      setRelacoesEstoque(relacoesEstoque.filter((rel) => rel.produtoId !== id))
     }
   }
 
@@ -517,11 +609,219 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.delete(`/estoque/${id}`)
       setEstoque(estoque.filter((e) => e.id !== id))
+
+      // Remover todas as relações deste item
+      setRelacoesEstoque(relacoesEstoque.filter((rel) => rel.itemId !== id))
+
+      // Atualizar produtos que usam este item
+      const produtosAtualizados = produtos.map((produto) => {
+        if (produto.itensEstoque && produto.itensEstoque.some((item) => item.itemId === id)) {
+          return {
+            ...produto,
+            itensEstoque: produto.itensEstoque.filter((item) => item.itemId !== id),
+          }
+        }
+        return produto
+      })
+
+      setProdutos(produtosAtualizados)
     } catch (err) {
       console.error("Erro ao excluir item do estoque:", err)
       // Fallback para localStorage
       setEstoque(estoque.filter((e) => e.id !== id))
+
+      // Remover todas as relações deste item
+      setRelacoesEstoque(relacoesEstoque.filter((rel) => rel.itemId !== id))
+
+      // Atualizar produtos que usam este item
+      const produtosAtualizados = produtos.map((produto) => {
+        if (produto.itensEstoque && produto.itensEstoque.some((item) => item.itemId === id)) {
+          return {
+            ...produto,
+            itensEstoque: produto.itensEstoque.filter((item) => item.itemId !== id),
+          }
+        }
+        return produto
+      })
+
+      setProdutos(produtosAtualizados)
     }
+  }
+
+  // Função para obter um produto com seus itens de estoque
+  const getProdutoComItensEstoque = (produtoId: number) => {
+    const produto = produtos.find((p) => p.id === produtoId)
+    if (!produto) return undefined
+
+    // Garantir que o produto tenha o array itensEstoque
+    const relacoesDosProduto = relacoesEstoque.filter((rel) => rel.produtoId === produtoId)
+
+    return {
+      ...produto,
+      itensEstoque: relacoesDosProduto.map((rel) => ({
+        itemId: rel.itemId,
+        quantidade: rel.quantidade,
+      })),
+    }
+  }
+
+  // Novas funções para gerenciar a relação entre produtos e itens de estoque
+  const associarItemEstoqueProduto = async (produtoId: number, itemId: number, quantidade: number) => {
+    try {
+      // Encontrar o produto
+      const produto = produtos.find((p) => p.id === produtoId)
+      if (!produto) {
+        throw new Error("Produto não encontrado")
+      }
+
+      // Verificar se o item de estoque existe
+      const itemEstoque = estoque.find((item) => item.id === itemId)
+      if (!itemEstoque) {
+        throw new Error("Item de estoque não encontrado")
+      }
+
+      // Verificar se o item já está associado ao produto
+      const relacaoExistente = relacoesEstoque.find((rel) => rel.produtoId === produtoId && rel.itemId === itemId)
+
+      if (relacaoExistente) {
+        throw new Error("Este item já está associado a este produto")
+      }
+
+      // Adicionar a relação localmente
+      const novaRelacao: ProdutoEstoqueRelacao = {
+        produtoId,
+        itemId,
+        quantidade,
+      }
+
+      setRelacoesEstoque([...relacoesEstoque, novaRelacao])
+
+      // Atualizar o produto no estado local
+      const produtoAtualizado = {
+        ...produto,
+        itensEstoque: [...(produto.itensEstoque || []), { itemId, quantidade }],
+      }
+
+      setProdutos(produtos.map((p) => (p.id === produtoId ? produtoAtualizado : p)))
+
+      // Tentar atualizar no backend (mesmo que não funcione, temos o backup local)
+      try {
+        await api.put(`/produtos/${produtoId}`, produto)
+      } catch (err) {
+        console.log("Erro ao atualizar produto no backend, mas a relação foi salva localmente:", err)
+      }
+
+      return produtoAtualizado
+    } catch (err) {
+      console.error("Erro ao associar item de estoque ao produto:", err)
+      throw err
+    }
+  }
+
+  const desassociarItemEstoqueProduto = async (produtoId: number, itemId: number) => {
+    try {
+      // Encontrar o produto
+      const produto = produtos.find((p) => p.id === produtoId)
+      if (!produto) {
+        throw new Error("Produto não encontrado")
+      }
+
+      // Verificar se o item está associado ao produto
+      const relacaoExistente = relacoesEstoque.find((rel) => rel.produtoId === produtoId && rel.itemId === itemId)
+
+      if (!relacaoExistente) {
+        throw new Error("Este item não está associado a este produto")
+      }
+
+      // Remover a relação localmente
+      setRelacoesEstoque(relacoesEstoque.filter((rel) => !(rel.produtoId === produtoId && rel.itemId === itemId)))
+
+      // Atualizar o produto no estado local
+      const produtoAtualizado = {
+        ...produto,
+        itensEstoque: (produto.itensEstoque || []).filter((item) => item.itemId !== itemId),
+      }
+
+      setProdutos(produtos.map((p) => (p.id === produtoId ? produtoAtualizado : p)))
+
+      // Tentar atualizar no backend (mesmo que não funcione, temos o backup local)
+      try {
+        await api.put(`/produtos/${produtoId}`, produto)
+      } catch (err) {
+        console.log("Erro ao atualizar produto no backend, mas a relação foi removida localmente:", err)
+      }
+
+      return produtoAtualizado
+    } catch (err) {
+      console.error("Erro ao desassociar item de estoque do produto:", err)
+      throw err
+    }
+  }
+
+  const atualizarQuantidadeItemEstoqueProduto = async (produtoId: number, itemId: number, quantidade: number) => {
+    try {
+      // Encontrar o produto
+      const produto = produtos.find((p) => p.id === produtoId)
+      if (!produto) {
+        throw new Error("Produto não encontrado")
+      }
+
+      // Verificar se o item está associado ao produto
+      const relacaoExistente = relacoesEstoque.find((rel) => rel.produtoId === produtoId && rel.itemId === itemId)
+
+      if (!relacaoExistente) {
+        throw new Error("Este item não está associado a este produto")
+      }
+
+      // Atualizar a relação localmente
+      setRelacoesEstoque(
+        relacoesEstoque.map((rel) => {
+          if (rel.produtoId === produtoId && rel.itemId === itemId) {
+            return { ...rel, quantidade }
+          }
+          return rel
+        }),
+      )
+
+      // Atualizar o produto no estado local
+      const produtoAtualizado = {
+        ...produto,
+        itensEstoque: (produto.itensEstoque || []).map((item) => {
+          if (item.itemId === itemId) {
+            return { ...item, quantidade }
+          }
+          return item
+        }),
+      }
+
+      setProdutos(produtos.map((p) => (p.id === produtoId ? produtoAtualizado : p)))
+
+      // Tentar atualizar no backend (mesmo que não funcione, temos o backup local)
+      try {
+        await api.put(`/produtos/${produtoId}`, produto)
+      } catch (err) {
+        console.log("Erro ao atualizar produto no backend, mas a quantidade foi atualizada localmente:", err)
+      }
+
+      return produtoAtualizado
+    } catch (err) {
+      console.error("Erro ao atualizar quantidade do item de estoque no produto:", err)
+      throw err
+    }
+  }
+
+  const getItensEstoqueProduto = (produtoId: number) => {
+    // Buscar as relações do produto
+    const relacoesDosProduto = relacoesEstoque.filter((rel) => rel.produtoId === produtoId)
+
+    return relacoesDosProduto.map((rel) => ({
+      itemId: rel.itemId,
+      quantidade: rel.quantidade,
+    }))
+  }
+
+  const getItensEstoqueDisponiveis = () => {
+    return estoque
   }
 
   // Função para atualizar o estoque após uma venda
@@ -539,41 +839,55 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (produto) {
           console.log(`Produto encontrado: ${produto.nome} (ID: ${produto.id})`)
 
-          // Buscar itens de estoque associados a este produto
-          const itensEstoqueDoProduto = estoque.filter((item) => item.produtoId === produto.id)
+          // Buscar as relações do produto
+          const relacoesDosProduto = relacoesEstoque.filter((rel) => rel.produtoId === produto.id)
 
-          console.log(`Itens de estoque associados: ${itensEstoqueDoProduto.length}`)
+          if (relacoesDosProduto.length > 0) {
+            console.log(`Relações encontradas: ${relacoesDosProduto.length}`)
 
-          // Para cada item de estoque associado ao produto, reduzir a quantidade
-          for (const itemEstoque of itensEstoqueDoProduto) {
-            // Reduzir a quantidade do estoque de acordo com a quantidade vendida
-            const novaQuantidade = Math.max(0, itemEstoque.quantidade - itemVendido.quantidade)
+            // Para cada item de estoque associado ao produto
+            for (const relacao of relacoesDosProduto) {
+              // Encontrar o item de estoque
+              const itemEstoque = estoque.find((item) => item.id === relacao.itemId)
 
-            console.log(`Atualizando estoque de ${itemEstoque.nome}: ${itemEstoque.quantidade} -> ${novaQuantidade}`)
+              if (itemEstoque) {
+                // Calcular a quantidade a ser reduzida (quantidade vendida * quantidade necessária por produto)
+                const quantidadeReduzir = itemVendido.quantidade * relacao.quantidade
 
-            // Atualizar o item de estoque
-            const itemAtualizado = {
-              ...itemEstoque,
-              quantidade: novaQuantidade,
-              ultimaAtualizacao: new Date(),
+                // Reduzir a quantidade do estoque
+                const novaQuantidade = Math.max(0, itemEstoque.quantidade - quantidadeReduzir)
+
+                console.log(
+                  `Atualizando estoque de ${itemEstoque.nome}: ${itemEstoque.quantidade} -> ${novaQuantidade} (redução de ${quantidadeReduzir})`,
+                )
+
+                // Atualizar o item de estoque
+                const itemAtualizado = {
+                  ...itemEstoque,
+                  quantidade: novaQuantidade,
+                  ultimaAtualizacao: new Date(),
+                }
+
+                // Enviar para a API
+                await api.put(`/estoque/${itemEstoque.id}`, itemAtualizado)
+
+                // Atualizar o estado local
+                await updateItemEstoque(itemAtualizado)
+
+                // Notificar se o estoque ficou abaixo do mínimo
+                if (novaQuantidade <= itemEstoque.estoqueMinimo && itemEstoque.quantidade > itemEstoque.estoqueMinimo) {
+                  toast({
+                    title: "Alerta de Estoque",
+                    description: `O item "${itemEstoque.nome}" está abaixo do nível mínimo (${itemEstoque.estoqueMinimo})`,
+                    status: "warning",
+                    duration: 5000,
+                    isClosable: true,
+                  })
+                }
+              }
             }
-
-            // Enviar para a API
-            await api.put(`/estoque/${itemEstoque.id}`, itemAtualizado)
-
-            // Atualizar o estado local
-            await updateItemEstoque(itemAtualizado)
-
-            // Notificar se o estoque ficou abaixo do mínimo
-            if (novaQuantidade <= itemEstoque.estoqueMinimo && itemEstoque.quantidade > itemEstoque.estoqueMinimo) {
-              toast({
-                title: "Alerta de Estoque",
-                description: `O item "${itemEstoque.nome}" está abaixo do nível mínimo (${itemEstoque.estoqueMinimo})`,
-                status: "warning",
-                duration: 5000,
-                isClosable: true,
-              })
-            }
+          } else {
+            console.log(`Produto ${produto.nome} não possui relações com itens de estoque`)
           }
         } else {
           console.log(`Produto não encontrado para o item: ${itemVendido.nome}`)
@@ -638,6 +952,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addVenda,
     refreshData,
     atualizarEstoqueAposVenda,
+    // Adicionar as novas funções ao contexto
+    associarItemEstoqueProduto,
+    desassociarItemEstoqueProduto,
+    atualizarQuantidadeItemEstoqueProduto,
+    getItensEstoqueProduto,
+    getItensEstoqueDisponiveis,
+    getProdutoComItensEstoque,
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
