@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Box,
   Heading,
@@ -30,10 +30,30 @@ import {
   VStack,
   HStack,
   Circle,
+  Icon,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  RadioGroup,
+  Radio,
+  Input,
+  FormControl,
+  FormLabel
 } from "@chakra-ui/react"
+import { motion } from "framer-motion"
+import { FiTrendingUp, FiDollarSign, FiPieChart, FiBarChart2, FiList, FiDownload } from "react-icons/fi"
 import { useData } from "../context/DataContext"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 
-// Interface para os dados de faturamento
+const MotionBox = motion(Box)
+const MotionGridItem = motion(GridItem)
+
 interface DadosFaturamento {
   totalVendas: number
   valorTotal: number
@@ -49,8 +69,15 @@ interface DadosFaturamento {
 }
 
 const RelatoriosPage = () => {
-  const { vendas, pedidos } = useData()
+  const { vendas } = useData()
   const [periodoSelecionado, setPeriodoSelecionado] = useState<"hoje" | "semana" | "mes" | "total">("semana")
+  const { isOpen, onOpen, onClose } = useDisclosure()
+  const [exportType, setExportType] = useState<"hoje" | "semana" | "mes" | "dia_especifico" | "periodo">("hoje")
+  const [exportDataEspecifica, setExportDataEspecifica] = useState("")
+  const [exportDataInicio, setExportDataInicio] = useState("")
+  const [exportDataFim, setExportDataFim] = useState("")
+  const [isExporting, setIsExporting] = useState(false)
+  const reportRef = useRef<HTMLDivElement>(null)
   const [dadosFaturamento, setDadosFaturamento] = useState<DadosFaturamento>({
     totalVendas: 0,
     valorTotal: 0,
@@ -75,20 +102,16 @@ const RelatoriosPage = () => {
     })
   }
 
-  // Calcular faturamento com base no período selecionado
   useEffect(() => {
     if (vendas.length === 0) return
 
-    // Filtrar vendas por período
     const dataAtual = new Date()
     const inicioHoje = new Date(dataAtual.setHours(0, 0, 0, 0))
 
     const vendasFiltradas = vendas.filter((venda) => {
       const dataVenda = new Date(venda.data)
-
       switch (periodoSelecionado) {
-        case "hoje":
-          return dataVenda >= inicioHoje
+        case "hoje": return dataVenda >= inicioHoje
         case "semana": {
           const inicioSemana = new Date(dataAtual)
           inicioSemana.setDate(dataAtual.getDate() - 7)
@@ -99,17 +122,14 @@ const RelatoriosPage = () => {
           inicioMes.setDate(dataAtual.getDate() - 30)
           return dataVenda >= inicioMes
         }
-        default:
-          return true
+        default: return true
       }
     })
 
-    // Calcular dados gerais
     const totalVendas = vendasFiltradas.length
     const valorTotal = vendasFiltradas.reduce((sum, venda) => sum + venda.valor, 0)
     const ticketMedio = totalVendas > 0 ? valorTotal / totalVendas : 0
 
-    // Calcular formas de pagamento
     const formaPagamento: { [key: string]: number } = {}
     vendasFiltradas.forEach((venda) => {
       if (formaPagamento[venda.formaPagamento]) {
@@ -119,9 +139,7 @@ const RelatoriosPage = () => {
       }
     })
 
-    // Produtos mais vendidos
     const produtosMap = new Map<string, { quantidade: number; valor: number }>()
-
     vendasFiltradas.forEach((venda) => {
       venda.itensVendidos.forEach((item) => {
         const chave = item.nome
@@ -153,7 +171,6 @@ const RelatoriosPage = () => {
       produtosMaisVendidos,
     })
 
-    // Gerar dados para gráfico diário
     if (periodoSelecionado === "semana" || periodoSelecionado === "mes") {
       const diasPeriodo = periodoSelecionado === "semana" ? 7 : 30
       const labels: string[] = []
@@ -163,11 +180,9 @@ const RelatoriosPage = () => {
         const data = new Date()
         data.setDate(data.getDate() - i)
         data.setHours(0, 0, 0, 0)
-
         const dataStr = formatarData(data)
-        labels.unshift(dataStr) // Adiciona no início para manter ordem cronológica
+        labels.unshift(dataStr)
 
-        // Calcular valor vendido neste dia
         const valorDia = vendasFiltradas
           .filter((venda) => {
             const vendaData = new Date(venda.data)
@@ -175,77 +190,197 @@ const RelatoriosPage = () => {
             return vendaData.getTime() === data.getTime()
           })
           .reduce((sum, venda) => sum + venda.valor, 0)
-
         valores.unshift(valorDia)
       }
-
       setDadosDiarios({ labels, valores })
     }
   }, [periodoSelecionado, vendas])
 
-  // Cores para os gráficos
   const chartColors = [
-    "#C25B02", // Laranja escuro (cor primária)
-    "#E6B325", // Amarelo (cor secundária)
-    "#FFD700", // Dourado (cor de acento)
-    "#F3A505", // Laranja médio
-    "#D47B00", // Laranja acastanhado
-    "#F9CB40", // Amarelo claro
-    "#DAA520", // Goldenrod
-    "#B8860B", // Dourado escuro
-    "#FFA500", // Laranja
-    "#FF8C00", // Laranja escuro
+    "#FF6B00", // brand.primary
+    "#FFD700", // brand.secondary
+    "#48BB78", // green.400
+    "#4299E1", // blue.400
+    "#9F7AEA", // purple.400
   ]
 
-  // Encontrar o valor máximo para normalizar os gráficos
   const maxValorDiario = Math.max(...dadosDiarios.valores, 1)
   const maxQuantidadeProduto =
     dadosFaturamento.produtosMaisVendidos.length > 0
       ? Math.max(...dadosFaturamento.produtosMaisVendidos.map((p) => p.quantidade), 1)
       : 1
 
-  return (
-    <Box maxW="1200px" mx="auto" p={4}>
-      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
-        <Button
-          bg="#C25B02"
-          color="white"
-          size="md"
-          borderRadius="full"
-          px={6}
-          py={2}
-          fontWeight="normal"
-          fontSize="md"
-          _hover={{ bg: "#B24A01" }}
-        >
-          Relatório de Vendas
-        </Button>
+  const generateDetailedPDF = () => {
+    setIsExporting(true)
+    
+    // Calcular as datas baseadas na seleção do modal
+    const dataAtual = new Date()
+    let inicioFiltro = new Date(dataAtual.setHours(0, 0, 0, 0))
+    let fimFiltro = new Date()
+    fimFiltro.setHours(23, 59, 59, 999)
 
-        <Select
-          bg="black"
-          color="white"
-          borderColor="whiteAlpha.300"
-          value={periodoSelecionado}
-          onChange={(e) => setPeriodoSelecionado(e.target.value as any)}
-          maxW="200px"
-        >
-          <option value="hoje">Hoje</option>
-          <option value="semana">Últimos 7 dias</option>
-          <option value="mes">Últimos 30 dias</option>
-          <option value="total">Todo o período</option>
-        </Select>
+    if (exportType === "semana") {
+      inicioFiltro = new Date()
+      inicioFiltro.setDate(inicioFiltro.getDate() - 7)
+      inicioFiltro.setHours(0, 0, 0, 0)
+    } else if (exportType === "mes") {
+      inicioFiltro = new Date()
+      inicioFiltro.setDate(inicioFiltro.getDate() - 30)
+      inicioFiltro.setHours(0, 0, 0, 0)
+    } else if (exportType === "dia_especifico" && exportDataEspecifica) {
+      inicioFiltro = new Date(exportDataEspecifica + "T00:00:00")
+      fimFiltro = new Date(exportDataEspecifica + "T23:59:59")
+    } else if (exportType === "periodo" && exportDataInicio && exportDataFim) {
+      inicioFiltro = new Date(exportDataInicio + "T00:00:00")
+      fimFiltro = new Date(exportDataFim + "T23:59:59")
+    }
+
+    // Filtrar dados
+    const vendasFiltradas = vendas.filter((venda) => {
+      const dataVenda = new Date(venda.data)
+      return dataVenda >= inicioFiltro && dataVenda <= fimFiltro
+    })
+
+    const totalVendasModal = vendasFiltradas.length
+    const valorTotalModal = vendasFiltradas.reduce((sum, v) => sum + v.valor, 0)
+    const ticketMedioModal = totalVendasModal > 0 ? valorTotalModal / totalVendasModal : 0
+
+    // Contabilizar formas de pagamento
+    const fp: { [key: string]: number } = {}
+    vendasFiltradas.forEach(v => {
+      fp[v.formaPagamento] = (fp[v.formaPagamento] || 0) + v.valor
+    })
+
+    // Contabilizar produtos
+    const prodMap = new Map<string, { quantidade: number; valor: number }>()
+    vendasFiltradas.forEach(v => {
+      v.itensVendidos.forEach(item => {
+        const atual = prodMap.get(item.nome) || { quantidade: 0, valor: 0 }
+        prodMap.set(item.nome, {
+          quantidade: atual.quantidade + item.quantidade,
+          valor: atual.valor + item.valorUnitario * item.quantidade
+        })
+      })
+    })
+    const produtosArr = Array.from(prodMap.entries())
+      .map(([nome, { quantidade, valor }]) => ({ nome, quantidade, valor }))
+      .sort((a, b) => b.quantidade - a.quantidade)
+
+    // Criar o PDF
+    const doc = new jsPDF()
+
+    // Título e Cabeçalho
+    doc.setFontSize(18)
+    doc.setFont("helvetica", "bold")
+    doc.text("Relatório Detalhado de Operação", 14, 20)
+    
+    doc.setFontSize(11)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Aquele Hot Dogs - Emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 28)
+    doc.text(`Período analisado: ${formatarData(inicioFiltro)} até ${formatarData(fimFiltro)}`, 14, 34)
+
+    // Resumo
+    autoTable(doc, {
+      startY: 42,
+      head: [["Métrica Financeira", "Valor"]],
+      body: [
+        ["Total de Comandas", totalVendasModal],
+        ["Faturamento Total Bruto", formatarValor(valorTotalModal)],
+        ["Ticket Médio por Comanda", formatarValor(ticketMedioModal)]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [255, 107, 0] } // Laranja brand.primary
+    })
+
+    // Tabela Formas Pagamento
+    const fpBody = Object.entries(fp).map(([forma, valor]) => {
+      const nomeForma = forma === "pix" ? "PIX" : forma === "dinheiro" ? "Dinheiro" : forma === "cartao_credito" ? "Cartão de Crédito" : "Cartão de Débito"
+      return [nomeForma, formatarValor(valor)]
+    })
+    
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 10,
+      head: [["Meio de Pagamento", "Total Arrecadado"]],
+      body: fpBody.length > 0 ? fpBody : [["Nenhum", "-"]],
+      theme: 'striped',
+      headStyles: { fillColor: [44, 62, 80] }
+    })
+
+    // Produtos Mais Vendidos
+    const prodBody = produtosArr.map((p, i) => [
+      i + 1,
+      p.nome,
+      p.quantidade,
+      formatarValor(p.valor)
+    ])
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 10,
+      head: [["Ranking", "Produto Vendido", "Qtd. Vendida", "Receita Gerada"]],
+      body: prodBody.length > 0 ? prodBody : [["-", "Sem dados de produtos", "-", "-"]],
+      theme: 'striped',
+      headStyles: { fillColor: [44, 62, 80] }
+    })
+
+    // Salvar arquivo e fechar modal
+    doc.save(`Relatorio-AqueleHD-${exportType}.pdf`)
+    setIsExporting(false)
+    onClose()
+  }
+
+  return (
+    <Box maxW="1400px" mx="auto" w="100%">
+      <Flex justify="space-between" align="center" mb={10} flexWrap="wrap" gap={4}>
+        <Box>
+          <Heading size="xl" color="brand.light" fontWeight="700">
+            Relatórios
+          </Heading>
+          <Text color="gray.400" mt={1}>Acompanhe o desempenho do seu negócio.</Text>
+        </Box>
+
+        <Flex gap={3} align="center">
+          <Select
+            bg="brand.surface"
+            color="brand.light"
+            border="1px solid"
+            borderColor="brand.surfaceborder"
+            borderRadius="full"
+            value={periodoSelecionado}
+            onChange={(e) => setPeriodoSelecionado(e.target.value as any)}
+            maxW="250px"
+            sx={{"& > option":{background:"#0F172A",color:"white"}}}
+            _focus={{ borderColor: "brand.primary", boxShadow: "0 0 0 1px #FF6B00" }}
+          >
+            <option value="hoje">Hoje</option>
+            <option value="semana">Últimos 7 dias</option>
+            <option value="mes">Últimos 30 dias</option>
+            <option value="total">Todo o período</option>
+          </Select>
+          <Button
+            leftIcon={<FiDownload />}
+            variant="primary"
+            borderRadius="full"
+            onClick={onOpen}
+          >
+            Exportar Detalhado
+          </Button>
+        </Flex>
       </Flex>
 
-      {/* Cards com informações gerais */}
-      <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6} mb={6}>
-        <GridItem>
-          <Box bg="black" p={4} borderRadius="xl" borderWidth={1} borderColor="#E6B325">
+      <Box ref={reportRef} p={4} borderRadius="2xl" bg="brand.darker" mx="-16px">
+        <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6} mb={8}>
+        <MotionGridItem initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}>
+          <Box variant="glass" p={6} borderRadius="2xl" position="relative" overflow="hidden">
+            <Box position="absolute" top="-20px" right="-20px" opacity={0.1}>
+              <Icon as={FiList} boxSize={24} color="brand.primary" />
+            </Box>
             <Stat>
-              <StatLabel color="white">Total de Vendas</StatLabel>
-              <StatNumber color="#E6B325" fontSize="3xl">
+              <StatLabel color="gray.400" fontSize="md" fontWeight="medium">Total de Vendas</StatLabel>
+              <StatNumber color="brand.light" fontSize="4xl" fontWeight="900" mt={2}>
                 {dadosFaturamento.totalVendas}
               </StatNumber>
-              <StatHelpText color="white">
+              <StatHelpText color="brand.primary" fontSize="sm" mt={2} display="flex" alignItems="center" gap={1}>
+                <Icon as={FiTrendingUp} />
                 {periodoSelecionado === "hoje" && "Hoje"}
                 {periodoSelecionado === "semana" && "Nos últimos 7 dias"}
                 {periodoSelecionado === "mes" && "Nos últimos 30 dias"}
@@ -253,73 +388,77 @@ const RelatoriosPage = () => {
               </StatHelpText>
             </Stat>
           </Box>
-        </GridItem>
+        </MotionGridItem>
 
-        <GridItem>
-          <Box bg="black" p={4} borderRadius="xl" borderWidth={1} borderColor="#E6B325">
+        <MotionGridItem initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}>
+          <Box variant="glass" p={6} borderRadius="2xl" position="relative" overflow="hidden">
+             <Box position="absolute" top="-20px" right="-20px" opacity={0.1}>
+              <Icon as={FiDollarSign} boxSize={24} color="green.400" />
+            </Box>
             <Stat>
-              <StatLabel color="white">Faturamento</StatLabel>
-              <StatNumber color="#E6B325" fontSize="3xl">
+              <StatLabel color="gray.400" fontSize="md" fontWeight="medium">Faturamento Total</StatLabel>
+              <StatNumber color="brand.secondary" fontSize="4xl" fontWeight="900" mt={2} letterSpacing="tight">
                 {formatarValor(dadosFaturamento.valorTotal)}
               </StatNumber>
-              <StatHelpText color="white">Ticket médio: {formatarValor(dadosFaturamento.ticketMedio)}</StatHelpText>
+              <StatHelpText color="green.400" fontSize="sm" mt={2}>
+                Ticket médio: {formatarValor(dadosFaturamento.ticketMedio)}
+              </StatHelpText>
             </Stat>
           </Box>
-        </GridItem>
+        </MotionGridItem>
 
-        <GridItem>
-          <Box bg="black" p={4} borderRadius="xl" borderWidth={1} borderColor="#E6B325">
+        <MotionGridItem initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
+          <Box variant="glass" p={6} borderRadius="2xl" position="relative" overflow="hidden">
+            <Box position="absolute" top="-20px" right="-20px" opacity={0.1}>
+              <Icon as={FiPieChart} boxSize={24} color="blue.400" />
+            </Box>
             <Stat>
-              <StatLabel color="white">Método Mais Usado</StatLabel>
-              <StatNumber color="#E6B325" fontSize="3xl">
+              <StatLabel color="gray.400" fontSize="md" fontWeight="medium">Método Mais Usado</StatLabel>
+              <StatNumber color="brand.light" fontSize="4xl" fontWeight="900" mt={2}>
                 {Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[0] === "pix"
                   ? "PIX"
                   : Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[0] === "dinheiro"
                     ? "Dinheiro"
-                    : Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[0] ===
-                        "cartao_credito"
+                    : Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[0] === "cartao_credito"
                       ? "Crédito"
-                      : Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[0] ===
-                          "cartao_debito"
+                      : Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[0] === "cartao_debito"
                         ? "Débito"
                         : "N/A"}
               </StatNumber>
-              <StatHelpText color="white">
+              <StatHelpText color="blue.400" fontSize="sm" mt={2}>
                 {formatarValor(
                   Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1])[0]?.[1] || 0,
-                )}
+                )} recebidos
               </StatHelpText>
             </Stat>
           </Box>
-        </GridItem>
+        </MotionGridItem>
       </Grid>
 
-      <Tabs variant="enclosed" colorScheme="yellow" bg="#E6B325" borderRadius="md">
-        <TabList>
-          <Tab _selected={{ bg: "#C25B02", color: "white" }}>Visão Geral</Tab>
-          <Tab _selected={{ bg: "#C25B02", color: "white" }}>Produtos</Tab>
-          <Tab _selected={{ bg: "#C25B02", color: "white" }}>Vendas</Tab>
-        </TabList>
+      <Box variant="glass" borderRadius="2xl" overflow="hidden">
+        <Tabs variant="soft-rounded" colorScheme="orange" p={4}>
+          <TabList bg="whiteAlpha.50" p={2} borderRadius="xl" display="inline-flex" mb={4} border="1px solid" borderColor="brand.surfaceborder">
+            <Tab color="gray.400" _selected={{ bg: "brand.primary", color: "white", boxShadow: "md" }} borderRadius="lg" px={6}>Visão Geral</Tab>
+            <Tab color="gray.400" _selected={{ bg: "brand.primary", color: "white", boxShadow: "md" }} borderRadius="lg" px={6}>Produtos</Tab>
+            <Tab color="gray.400" _selected={{ bg: "brand.primary", color: "white", boxShadow: "md" }} borderRadius="lg" px={6}>Histórico</Tab>
+          </TabList>
 
-        <TabPanels bg="black" borderBottomRadius="md">
-          <TabPanel>
-            <Grid templateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap={6}>
-              {/* Gráfico de Vendas por Dia (simplificado) */}
-              <GridItem>
-                <Box bg="whiteAlpha.100" p={4} borderRadius="md" height="100%">
-                  <Heading size="md" color="#E6B325" mb={4}>
-                    Faturamento Diário
-                  </Heading>
-                  {dadosDiarios.labels.length > 0 ? (
-                    <Box bg="whiteAlpha.50" p={4} borderRadius="md">
-                      <VStack spacing={2} align="stretch">
+          <TabPanels>
+            <TabPanel>
+              <Grid templateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap={8}>
+                <GridItem>
+                  <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder" height="100%">
+                    <Flex align="center" gap={3} mb={6}>
+                      <Box p={2} bg="brand.primary" borderRadius="md" opacity={0.8}><FiBarChart2 color="white" /></Box>
+                      <Heading size="md" color="brand.light">Faturamento Diário</Heading>
+                    </Flex>
+                    {dadosDiarios.labels.length > 0 ? (
+                      <VStack spacing={4} align="stretch">
                         {dadosDiarios.labels.map((label, index) => (
                           <Box key={index}>
-                            <Flex justify="space-between" mb={1}>
-                              <Text color="white" fontSize="sm">
-                                {label}
-                              </Text>
-                              <Text color="white" fontSize="sm">
+                            <Flex justify="space-between" mb={2}>
+                              <Text color="gray.400" fontSize="sm" fontWeight="medium">{label}</Text>
+                              <Text color="brand.secondary" fontSize="sm" fontWeight="bold">
                                 {formatarValor(dadosDiarios.valores[index])}
                               </Text>
                             </Flex>
@@ -328,243 +467,264 @@ const RelatoriosPage = () => {
                               colorScheme="orange"
                               size="sm"
                               borderRadius="full"
+                              bg="whiteAlpha.100"
+                              sx={{ "& > div": { background: "linear-gradient(90deg, #FF6B00 0%, #FFB01A 100%)" } }}
                             />
                           </Box>
                         ))}
                       </VStack>
-                    </Box>
-                  ) : (
-                    <Flex justify="center" align="center" h="200px">
-                      <Text color="whiteAlpha.700">Nenhum dado disponível para o período selecionado</Text>
-                    </Flex>
-                  )}
-                </Box>
-              </GridItem>
+                    ) : (
+                      <Flex justify="center" align="center" h="200px">
+                        <Text color="gray.500">Nenhum dado disponível para o período selecionado.</Text>
+                      </Flex>
+                    )}
+                  </Box>
+                </GridItem>
 
-              {/* Gráfico de Formas de Pagamento (simplificado) */}
-              <GridItem>
-                <Box bg="whiteAlpha.100" p={4} borderRadius="md" height="100%">
-                  <Heading size="md" color="#E6B325" mb={4}>
-                    Formas de Pagamento
-                  </Heading>
-                  {Object.keys(dadosFaturamento.formaPagamento).length > 0 ? (
-                    <Box bg="whiteAlpha.50" p={4} borderRadius="md">
-                      <VStack spacing={4} align="stretch">
-                        {Object.entries(dadosFaturamento.formaPagamento).map(([forma, valor], index) => {
+                <GridItem>
+                  <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder" height="100%">
+                    <Flex align="center" gap={3} mb={6}>
+                       <Box p={2} bg="blue.500" borderRadius="md" opacity={0.8}><FiPieChart color="white" /></Box>
+                      <Heading size="md" color="brand.light">Formas de Pagamento</Heading>
+                    </Flex>
+                    {Object.keys(dadosFaturamento.formaPagamento).length > 0 ? (
+                      <VStack spacing={5} align="stretch">
+                        {Object.entries(dadosFaturamento.formaPagamento).sort((a,b)=>b[1]-a[1]).map(([forma, valor], index) => {
                           const totalFormas = Object.values(dadosFaturamento.formaPagamento).reduce((a, b) => a + b, 0)
                           const porcentagem = (valor / totalFormas) * 100
-
+                          const color = chartColors[index % chartColors.length]
                           return (
                             <Box key={index}>
-                              <Flex justify="space-between" mb={1}>
+                              <Flex justify="space-between" mb={2}>
                                 <HStack>
-                                  <Circle size="12px" bg={chartColors[index % chartColors.length]} />
-                                  <Text color="white">
-                                    {forma === "pix"
-                                      ? "PIX"
-                                      : forma === "dinheiro"
-                                        ? "Dinheiro"
-                                        : forma === "cartao_credito"
-                                          ? "Cartão de Crédito"
-                                          : forma === "cartao_debito"
-                                            ? "Cartão de Débito"
-                                            : forma}
+                                  <Circle size="10px" bg={color} boxShadow={`0 0 10px ${color}`} />
+                                  <Text color="brand.light" fontSize="sm" fontWeight="medium">
+                                    {forma === "pix" ? "PIX" : forma === "dinheiro" ? "Dinheiro" : forma === "cartao_credito" ? "Cartão de Crédito" : forma === "cartao_debito" ? "Cartão de Débito" : forma}
                                   </Text>
                                 </HStack>
-                                <Text color="white">
+                                <Text color="gray.400" fontSize="sm">
                                   {formatarValor(valor)} ({porcentagem.toFixed(1)}%)
                                 </Text>
                               </Flex>
-                              <Progress value={porcentagem} colorScheme="yellow" size="sm" borderRadius="full" />
+                              <Progress value={porcentagem} size="xs" borderRadius="full" bg="whiteAlpha.100" sx={{ "& > div": { background: color } }} />
                             </Box>
                           )
                         })}
                       </VStack>
-                    </Box>
-                  ) : (
-                    <Flex justify="center" align="center" h="200px">
-                      <Text color="whiteAlpha.700">Nenhum dado disponível para o período selecionado</Text>
-                    </Flex>
-                  )}
-                </Box>
-              </GridItem>
-            </Grid>
-          </TabPanel>
+                    ) : (
+                      <Flex justify="center" align="center" h="200px">
+                        <Text color="gray.500">Nenhum dado.</Text>
+                      </Flex>
+                    )}
+                  </Box>
+                </GridItem>
+              </Grid>
+            </TabPanel>
 
-          <TabPanel>
-            <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={6}>
-              {/* Gráfico de Produtos Mais Vendidos (simplificado) */}
-              <GridItem>
-                <Box bg="whiteAlpha.100" p={4} borderRadius="md" height="100%">
-                  <Heading size="md" color="#E6B325" mb={4}>
-                    Produtos Mais Vendidos
-                  </Heading>
-                  {dadosFaturamento.produtosMaisVendidos.length > 0 ? (
-                    <Box bg="whiteAlpha.50" p={4} borderRadius="md">
-                      <VStack spacing={3} align="stretch">
+            <TabPanel>
+              <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={8}>
+                <GridItem>
+                  <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder" height="100%">
+                    <Heading size="md" color="brand.light" mb={6}>Mais Vendidos</Heading>
+                    {dadosFaturamento.produtosMaisVendidos.length > 0 ? (
+                      <VStack spacing={4} align="stretch">
                         {dadosFaturamento.produtosMaisVendidos.map((produto, index) => (
                           <Box key={index}>
-                            <Flex justify="space-between" mb={1}>
-                              <Text color="white" isTruncated maxW="70%">
-                                {produto.nome}
+                            <Flex justify="space-between" mb={2}>
+                              <Text color="brand.light" isTruncated maxW="70%" fontWeight="medium">
+                                {index + 1}. {produto.nome}
                               </Text>
-                              <Text color="white">{produto.quantidade} un.</Text>
+                              <Text color="brand.secondary" fontWeight="bold">{produto.quantidade} un.</Text>
                             </Flex>
                             <Progress
                               value={(produto.quantidade / maxQuantidadeProduto) * 100}
-                              colorScheme="orange"
-                              size="sm"
+                              size="xs"
                               borderRadius="full"
+                              bg="whiteAlpha.100"
+                              sx={{ "& > div": { background: "linear-gradient(90deg, #FF6B00 0%, #FFB01A 100%)" } }}
                             />
                           </Box>
                         ))}
                       </VStack>
-                    </Box>
-                  ) : (
-                    <Flex justify="center" align="center" h="200px">
-                      <Text color="whiteAlpha.700">Nenhum dado disponível para o período selecionado</Text>
-                    </Flex>
-                  )}
-                </Box>
-              </GridItem>
+                    ) : (
+                      <Flex justify="center" align="center" h="200px">
+                        <Text color="gray.500">Nenhum dado.</Text>
+                      </Flex>
+                    )}
+                  </Box>
+                </GridItem>
 
-              {/* Tabela de Produtos Mais Vendidos */}
-              <GridItem>
-                <Box bg="whiteAlpha.100" p={4} borderRadius="md" height="100%">
-                  <Heading size="md" color="#E6B325" mb={4}>
-                    Detalhamento de Produtos
-                  </Heading>
-                  {dadosFaturamento.produtosMaisVendidos.length > 0 ? (
-                    <Box overflowX="auto">
-                      <Table size="sm" variant="simple" colorScheme="whiteAlpha">
-                        <Thead>
-                          <Tr>
-                            <Th color="#E6B325">Produto</Th>
-                            <Th color="#E6B325" isNumeric>
-                              Qtd
-                            </Th>
-                            <Th color="#E6B325" isNumeric>
-                              Valor
-                            </Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {dadosFaturamento.produtosMaisVendidos.map((produto, idx) => (
-                            <Tr key={idx}>
-                              <Td color="white">{produto.nome}</Td>
-                              <Td color="white" isNumeric>
-                                {produto.quantidade}
-                              </Td>
-                              <Td color="white" isNumeric>
-                                {formatarValor(produto.valor)}
-                              </Td>
+                <GridItem>
+                  <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder" height="100%">
+                    <Heading size="md" color="brand.light" mb={6}>Detalhamento</Heading>
+                    {dadosFaturamento.produtosMaisVendidos.length > 0 ? (
+                      <Box overflowX="auto">
+                        <Table size="sm" variant="unstyled">
+                          <Thead borderBottom="1px solid" borderColor="whiteAlpha.200">
+                            <Tr>
+                              <Th color="gray.400" py={3}>Produto</Th>
+                              <Th color="gray.400" py={3} isNumeric>Quant.</Th>
+                              <Th color="gray.400" py={3} isNumeric>Receita</Th>
                             </Tr>
+                          </Thead>
+                          <Tbody>
+                            {dadosFaturamento.produtosMaisVendidos.map((produto, idx) => (
+                              <Tr key={idx} borderBottom="1px dashed" borderColor="whiteAlpha.100">
+                                <Td color="white" py={3} fontWeight="medium">{produto.nome}</Td>
+                                <Td color="gray.300" py={3} isNumeric>{produto.quantidade}</Td>
+                                <Td color="brand.secondary" py={3} isNumeric fontWeight="bold">{formatarValor(produto.valor)}</Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </Box>
+                    ) : (
+                      <Flex justify="center" align="center" h="200px">
+                        <Text color="gray.500">Nenhum dado.</Text>
+                      </Flex>
+                    )}
+                  </Box>
+                </GridItem>
+              </Grid>
+            </TabPanel>
+
+            <TabPanel>
+              <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder">
+                <Heading size="md" color="brand.light" mb={6}>Registros Recentes</Heading>
+                {vendas.length > 0 ? (
+                  <Box overflowX="auto">
+                    <Table size="sm" variant="unstyled">
+                      <Thead borderBottom="1px solid" borderColor="whiteAlpha.200">
+                        <Tr>
+                          <Th color="gray.400" py={4}>Data</Th>
+                          <Th color="gray.400" py={4}>Comanda</Th>
+                          <Th color="gray.400" py={4}>Forma Fgto</Th>
+                          <Th color="gray.400" py={4}>Itens</Th>
+                          <Th color="gray.400" py={4} isNumeric>Valor</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {vendas
+                          .filter((venda) => {
+                            const dataVenda = new Date(venda.data)
+                            const dataAtual = new Date()
+                            const inicioHoje = new Date(dataAtual.setHours(0, 0, 0, 0))
+
+                            switch (periodoSelecionado) {
+                              case "hoje": return dataVenda >= inicioHoje
+                              case "semana": {
+                                const inicioSemana = new Date(dataAtual)
+                                inicioSemana.setDate(dataAtual.getDate() - 7)
+                                return dataVenda >= inicioSemana
+                              }
+                              case "mes": {
+                                const inicioMes = new Date(dataAtual)
+                                inicioMes.setDate(dataAtual.getDate() - 30)
+                                return dataVenda >= inicioMes
+                              }
+                              default: return true
+                            }
+                          })
+                          .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                          .slice(0, 50)
+                          .map((venda, index) => (
+                            <MotionTr 
+                              key={venda.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.02 }}
+                              borderBottom="1px solid" borderColor="whiteAlpha.50" _hover={{ bg: "whiteAlpha.50" }}
+                            >
+                              <Td color="gray.300" py={4}>{formatarData(venda.data)}</Td>
+                              <Td color="white" py={4} fontWeight="bold">#{venda.pedidoId}</Td>
+                              <Td color="white" py={4}>
+                                <Badge
+                                  colorScheme={
+                                    venda.formaPagamento === "pix" ? "purple" : venda.formaPagamento === "dinheiro" ? "green" : venda.formaPagamento === "cartao_credito" ? "blue" : "cyan"
+                                  }
+                                  px={2} py={1} borderRadius="md" textTransform="uppercase"
+                                >
+                                  {venda.formaPagamento === "pix" ? "PIX" : venda.formaPagamento === "dinheiro" ? "Dinheiro" : venda.formaPagamento === "cartao_credito" ? "Crédito" : "Débito"}
+                                </Badge>
+                              </Td>
+                              <Td color="gray.400" py={4}>{venda.itensVendidos.reduce((acc, item) => acc + item.quantidade, 0)}</Td>
+                              <Td color="brand.secondary" py={4} isNumeric fontWeight="bold">
+                                {formatarValor(venda.valor)}
+                              </Td>
+                            </MotionTr>
                           ))}
-                        </Tbody>
-                      </Table>
-                    </Box>
-                  ) : (
-                    <Flex justify="center" align="center" h="200px">
-                      <Text color="whiteAlpha.700">Nenhum dado disponível para o período selecionado</Text>
-                    </Flex>
-                  )}
-                </Box>
-              </GridItem>
-            </Grid>
-          </TabPanel>
+                      </Tbody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Flex justify="center" align="center" h="200px">
+                    <Text color="gray.500">Nenhum dado.</Text>
+                  </Flex>
+                )}
+              </Box>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </Box>
+      </Box>
 
-          <TabPanel>
-            <Box bg="whiteAlpha.100" p={4} borderRadius="md">
-              <Heading size="md" color="#E6B325" mb={4}>
-                Histórico de Vendas
-              </Heading>
-              {vendas.length > 0 ? (
-                <Box overflowX="auto">
-                  <Table size="sm" variant="simple" colorScheme="whiteAlpha">
-                    <Thead>
-                      <Tr>
-                        <Th color="#E6B325">ID</Th>
-                        <Th color="#E6B325">Data</Th>
-                        <Th color="#E6B325">Comanda</Th>
-                        <Th color="#E6B325">Forma de Pagamento</Th>
-                        <Th color="#E6B325">Itens</Th>
-                        <Th color="#E6B325" isNumeric>
-                          Valor
-                        </Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {vendas
-                        .filter((venda) => {
-                          const dataVenda = new Date(venda.data)
-                          const dataAtual = new Date()
-                          const inicioHoje = new Date(dataAtual.setHours(0, 0, 0, 0))
+      {/* MODAL DE EXPORTAÇÃO */}
+      <Modal isOpen={isOpen} onClose={onClose} isCentered size="md">
+        <ModalOverlay backdropFilter="blur(10px)" bg="blackAlpha.700" />
+        <ModalContent bg="brand.surface" border="1px solid" borderColor="brand.surfaceborder" borderRadius="2xl">
+          <ModalHeader color="brand.light" borderBottom="1px solid" borderColor="whiteAlpha.100">Exportar Relatório em PDF</ModalHeader>
+          <ModalCloseButton color="brand.light" />
+          <ModalBody py={6}>
+            <VStack spacing={6} align="stretch">
+              <FormControl>
+                <FormLabel color="gray.400" mb={3}>Selecione o filtro de datas que deseja exportar com precisão:</FormLabel>
+                <RadioGroup value={exportType} onChange={(v: any) => setExportType(v)} colorScheme="orange">
+                  <VStack align="start" spacing={3}>
+                    <Radio value="hoje"><Text color="brand.light">Apenas Hoje</Text></Radio>
+                    <Radio value="semana"><Text color="brand.light">Últimos 7 dias</Text></Radio>
+                    <Radio value="mes"><Text color="brand.light">Últimos 30 dias</Text></Radio>
+                    <Radio value="dia_especifico"><Text color="brand.light">Um dia específico</Text></Radio>
+                    <Radio value="periodo"><Text color="brand.light">Período personalizado</Text></Radio>
+                  </VStack>
+                </RadioGroup>
+              </FormControl>
 
-                          switch (periodoSelecionado) {
-                            case "hoje":
-                              return dataVenda >= inicioHoje
-                            case "semana": {
-                              const inicioSemana = new Date(dataAtual)
-                              inicioSemana.setDate(dataAtual.getDate() - 7)
-                              return dataVenda >= inicioSemana
-                            }
-                            case "mes": {
-                              const inicioMes = new Date(dataAtual)
-                              inicioMes.setDate(dataAtual.getDate() - 30)
-                              return dataVenda >= inicioMes
-                            }
-                            default:
-                              return true
-                          }
-                        })
-                        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-                        .slice(0, 50) // Limitando para os 50 mais recentes
-                        .map((venda) => (
-                          <Tr key={venda.id}>
-                            <Td color="white">{venda.id}</Td>
-                            <Td color="white">{formatarData(venda.data)}</Td>
-                            <Td color="white">{venda.pedidoId}</Td>
-                            <Td color="white">
-                              <Badge
-                                colorScheme={
-                                  venda.formaPagamento === "pix"
-                                    ? "purple"
-                                    : venda.formaPagamento === "dinheiro"
-                                      ? "green"
-                                      : venda.formaPagamento === "cartao_credito"
-                                        ? "blue"
-                                        : "cyan"
-                                }
-                              >
-                                {venda.formaPagamento === "pix"
-                                  ? "PIX"
-                                  : venda.formaPagamento === "dinheiro"
-                                    ? "Dinheiro"
-                                    : venda.formaPagamento === "cartao_credito"
-                                      ? "Crédito"
-                                      : "Débito"}
-                              </Badge>
-                            </Td>
-                            <Td color="white">{venda.itensVendidos.reduce((acc, item) => acc + item.quantidade, 0)}</Td>
-                            <Td color="white" isNumeric>
-                              {formatarValor(venda.valor)}
-                            </Td>
-                          </Tr>
-                        ))}
-                    </Tbody>
-                  </Table>
-                </Box>
-              ) : (
-                <Flex justify="center" align="center" h="200px">
-                  <Text color="whiteAlpha.700">Nenhum dado disponível para o período selecionado</Text>
-                </Flex>
+              {exportType === "dia_especifico" && (
+                <FormControl>
+                  <FormLabel color="gray.400">Data Desejada</FormLabel>
+                  <Input type="date" value={exportDataEspecifica} onChange={e => setExportDataEspecifica(e.target.value)} color="brand.light" bg="brand.dark" borderColor="whiteAlpha.200" sx={{ "&::-webkit-calendar-picker-indicator": { filter: "invert(1)" } }} />
+                </FormControl>
               )}
-            </Box>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+
+              {exportType === "periodo" && (
+                <HStack>
+                  <FormControl>
+                    <FormLabel color="gray.400">De</FormLabel>
+                    <Input type="date" value={exportDataInicio} onChange={e => setExportDataInicio(e.target.value)} color="brand.light" bg="brand.dark" borderColor="whiteAlpha.200" sx={{ "&::-webkit-calendar-picker-indicator": { filter: "invert(1)" } }} />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel color="gray.400">Até</FormLabel>
+                    <Input type="date" value={exportDataFim} onChange={e => setExportDataFim(e.target.value)} color="brand.light" bg="brand.dark" borderColor="whiteAlpha.200" sx={{ "&::-webkit-calendar-picker-indicator": { filter: "invert(1)" } }} />
+                  </FormControl>
+                </HStack>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter borderTop="1px solid" borderColor="whiteAlpha.100" pt={4}>
+            <Button variant="ghost" color="gray.400" mr={3} onClick={onClose} _hover={{ bg: "whiteAlpha.100" }}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={generateDetailedPDF} isLoading={isExporting} loadingText="Gerando..." isDisabled={(exportType === "dia_especifico" && !exportDataEspecifica) || (exportType === "periodo" && (!exportDataInicio || !exportDataFim))}>
+              <Icon as={FiDownload} mr={2} /> Baixar PDF
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
     </Box>
   )
 }
+
+const MotionTr = motion(Tr)
 
 export default RelatoriosPage

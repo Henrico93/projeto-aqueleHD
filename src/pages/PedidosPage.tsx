@@ -24,9 +24,12 @@ import {
   InputLeftElement,
   Spinner,
 } from "@chakra-ui/react"
+import { motion } from "framer-motion"
 import { Link as RouterLink } from "react-router-dom"
 import { FiEdit, FiCreditCard, FiPlus, FiTrash2, FiSearch, FiRefreshCw } from "react-icons/fi"
 import { useData, type Pedido } from "../context/DataContext"
+
+const MotionBox = motion(Box)
 
 const PedidosPage = () => {
   const toast = useToast()
@@ -130,7 +133,7 @@ const PedidosPage = () => {
       await refreshData()
       toast({
         title: "Dados atualizados",
-        description: "As comandas foram sincronizadas com o servidor",
+        description: "As comandas foram sincronizadas.",
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -138,7 +141,7 @@ const PedidosPage = () => {
     } catch (error) {
       toast({
         title: "Erro ao atualizar",
-        description: "Não foi possível sincronizar com o servidor",
+        description: "Não foi possível sincronizar.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -149,65 +152,56 @@ const PedidosPage = () => {
   }
 
   return (
-    <Box maxW="1200px" mx="auto" p={4}>
-      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
-        <HStack>
+    <Box maxW="1200px" mx="auto" w="100%">
+      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={4}>
+        <HStack spacing={2} bg="brand.surface" p={1} borderRadius="full" border="1px solid" borderColor="brand.surfaceborder" backdropFilter="blur(10px)">
           <Button
-            bg={statusFilter === "todos" ? "#C25B02" : "gray.700"}
-            color="white"
-            size="md"
+            variant={statusFilter === "todos" ? "primary" : "ghost"}
+            size="sm"
             borderRadius="full"
             px={6}
-            py={2}
-            fontWeight="normal"
-            fontSize="md"
-            _hover={{ bg: statusFilter === "todos" ? "#B24A01" : "gray.600" }}
+            color={statusFilter === "todos" ? "white" : "brand.light"}
             onClick={() => setStatusFilter("todos")}
           >
             Todas
           </Button>
           <Button
-            bg={statusFilter === "aberto" ? "#C25B02" : "gray.700"}
-            color="white"
-            size="md"
+            variant={statusFilter === "aberto" ? "primary" : "ghost"}
+            size="sm"
             borderRadius="full"
             px={6}
-            py={2}
-            fontWeight="normal"
-            fontSize="md"
-            _hover={{ bg: statusFilter === "aberto" ? "#B24A01" : "gray.600" }}
+            color={statusFilter === "aberto" ? "white" : "brand.light"}
             onClick={() => setStatusFilter("aberto")}
           >
             Abertas
           </Button>
           <Button
-            bg={statusFilter === "fechado" ? "#C25B02" : "gray.700"}
-            color="white"
-            size="md"
+            variant={statusFilter === "fechado" ? "primary" : "ghost"}
+            size="sm"
             borderRadius="full"
             px={6}
-            py={2}
-            fontWeight="normal"
-            fontSize="md"
-            _hover={{ bg: statusFilter === "fechado" ? "#B24A01" : "gray.600" }}
+            color={statusFilter === "fechado" ? "white" : "brand.light"}
             onClick={() => setStatusFilter("fechado")}
           >
             Fechadas
           </Button>
         </HStack>
 
-        <HStack>
+        <HStack spacing={3}>
           <InputGroup maxW="300px">
             <InputLeftElement pointerEvents="none">
-              <FiSearch color="gray.300" />
+              <FiSearch color="gray.400" />
             </InputLeftElement>
             <Input
               placeholder="Buscar comanda..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              bg="black"
-              color="white"
-              borderColor="whiteAlpha.300"
+              bg="brand.surface"
+              color="brand.light"
+              border="1px solid"
+              borderColor="brand.surfaceborder"
+              borderRadius="full"
+              _focus={{ borderColor: "brand.primary", boxShadow: "0 0 0 1px #FF6B00" }}
             />
           </InputGroup>
 
@@ -215,10 +209,11 @@ const PedidosPage = () => {
             leftIcon={<FiRefreshCw />}
             onClick={handleRefresh}
             isLoading={isRefreshing}
-            loadingText="Atualizando"
-            bg="gray.700"
-            color="white"
-            _hover={{ bg: "gray.600" }}
+            variant="outline"
+            borderColor="brand.surfaceborder"
+            color="brand.light"
+            _hover={{ bg: "whiteAlpha.200", borderColor: "brand.secondary" }}
+            borderRadius="full"
           >
             Atualizar
           </Button>
@@ -226,80 +221,81 @@ const PedidosPage = () => {
           <Button
             as={RouterLink}
             to="/novo-pedido"
-            bg="#C25B02"
-            color="white"
-            size="md"
+            variant="primary"
             borderRadius="full"
-            px={6}
-            py={2}
-            fontWeight="normal"
-            fontSize="md"
             leftIcon={<FiPlus />}
-            _hover={{ bg: "#B24A01" }}
           >
-            Nova comanda
+            Nova Comanda
           </Button>
         </HStack>
       </Flex>
 
-      <Box bg="black" borderRadius="xl" p={4} overflow="hidden">
+      <Box variant="glass" borderRadius="2xl" p={6} minH="400px">
         {isRefreshing ? (
-          <Flex justify="center" align="center" py={10}>
-            <Spinner color="#E6B325" size="xl" />
+          <Flex justify="center" align="center" h="100%" py={20}>
+            <Spinner color="brand.primary" size="xl" thickness="4px" />
           </Flex>
         ) : (
-          <VStack spacing={1} align="stretch">
+          <VStack spacing={3} align="stretch">
             {filteredPedidos.length > 0 ? (
-              filteredPedidos.map((pedido) => (
-                <Box
+              filteredPedidos.map((pedido, index) => (
+                <MotionBox
                   key={pedido.id}
-                  bg="#E6B325"
-                  p={3}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.01, backgroundColor: "rgba(255,107,0,0.1)" }}
+                  bg="whiteAlpha.50"
+                  p={4}
+                  borderRadius="xl"
+                  border="1px solid"
+                  borderColor="whiteAlpha.100"
                   cursor="pointer"
                   onClick={() => handlePedidoClick(pedido)}
                   display="flex"
                   justifyContent="space-between"
                   alignItems="center"
-                  _hover={{ bg: "#D6A315" }}
-                  transition="background 0.2s"
+                  boxShadow="md"
                 >
                   <Flex align="center" width="100%">
-                    <Box width="100px" pl={2}>
-                      <Text fontWeight="medium" color="black">
-                        Comanda #{pedido.id}
+                    <Box width="120px" pl={2}>
+                      <Text fontWeight="bold" color="brand.secondary" fontSize="lg">
+                        #{pedido.id}
                       </Text>
-                      <Text fontSize="xs" color="blackAlpha.700">
+                      <Text fontSize="xs" color="gray.400">
                         {formatarHora(pedido.timestamp)}
                       </Text>
                     </Box>
 
                     <Box flex="1">
                       <Flex justify="space-between" align="center">
-                        <Text color="blackAlpha.800" fontWeight="medium">
-                          {pedido.cliente} • {pedido.mesa}
+                        <Text color="brand.light" fontWeight="600" fontSize="md">
+                          {pedido.cliente} <Text as="span" color="whiteAlpha.400" mx={2}>•</Text> {pedido.mesa}
                         </Text>
-                        <Flex align="center" gap={2}>
+                        <Flex align="center" gap={4}>
                           <Badge
                             colorScheme={pedido.status === "aberto" ? "green" : "orange"}
                             fontSize="xs"
-                            px={2}
+                            px={3}
                             py={1}
                             borderRadius="full"
+                            textTransform="uppercase"
+                            letterSpacing="wider"
                           >
                             {pedido.status === "aberto" ? "Aberta" : "Fechada"}
                           </Badge>
-                          <Text fontWeight="bold" color="blackAlpha.800">
+                          <Text fontWeight="bold" color="brand.light" fontSize="lg">
                             R$ {calcularTotal(pedido).toFixed(2)}
                           </Text>
                         </Flex>
                       </Flex>
                     </Box>
                   </Flex>
-                </Box>
+                </MotionBox>
               ))
             ) : (
-              <Box p={4} textAlign="center">
-                <Text color="white">Nenhuma comanda encontrada</Text>
+              <Box p={10} textAlign="center">
+                <Text color="gray.400" fontSize="lg">Nenhuma comanda encontrada para esta busca.</Text>
               </Box>
             )}
           </VStack>
@@ -307,16 +303,16 @@ const PedidosPage = () => {
       </Box>
 
       {/* Modal de detalhes do pedido */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
-        <ModalOverlay />
-        <ModalContent bg="black" borderColor="#E6B325" borderWidth={1}>
-          <ModalHeader color="#E6B325" borderBottomWidth={1} borderBottomColor="#E6B325">
+      <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered motionPreset="slideInBottom">
+        <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
+        <ModalContent bg="brand.darker" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl" overflow="hidden" boxShadow="0 10px 40px rgba(0,0,0,0.5)">
+          <ModalHeader color="brand.secondary" borderBottomWidth={1} borderBottomColor="whiteAlpha.100" bg="whiteAlpha.50" pt={5} pb={4}>
             <Flex justify="space-between" align="center">
-              <Text>Comanda #{selectedPedido?.id}</Text>
+              <Text fontFamily="'Bubblegum Sans', cursive" fontSize="2xl" letterSpacing="wide">Comanda #{selectedPedido?.id}</Text>
               <Badge
                 colorScheme={selectedPedido?.status === "aberto" ? "green" : "orange"}
                 fontSize="sm"
-                px={2}
+                px={3}
                 py={1}
                 borderRadius="full"
               >
@@ -324,78 +320,88 @@ const PedidosPage = () => {
               </Badge>
             </Flex>
           </ModalHeader>
-          <ModalCloseButton color="white" />
-          <ModalBody pb={6}>
-            <VStack align="stretch" spacing={4}>
-              <Flex justify="space-between">
-                <Text color="white">
-                  Cliente:{" "}
-                  <Text as="span" fontWeight="bold">
+          <ModalCloseButton color="brand.light" mt={2} />
+          <ModalBody py={6} px={8}>
+            <VStack align="stretch" spacing={5}>
+              <Flex justify="space-between" bg="whiteAlpha.50" p={4} borderRadius="lg">
+                <Box>
+                  <Text color="gray.400" fontSize="sm">Cliente</Text>
+                  <Text color="brand.light" fontWeight="bold" fontSize="lg">
                     {selectedPedido?.cliente}
                   </Text>
-                </Text>
-                <Text color="white">
-                  Mesa:{" "}
-                  <Text as="span" fontWeight="bold">
+                </Box>
+                <Box textAlign="right">
+                  <Text color="gray.400" fontSize="sm">Mesa</Text>
+                  <Text color="brand.light" fontWeight="bold" fontSize="lg">
                     {selectedPedido?.mesa}
                   </Text>
+                </Box>
+              </Flex>
+
+              <Box>
+                <Text color="brand.primary" fontWeight="bold" mb={3} textTransform="uppercase" fontSize="sm" letterSpacing="wider">
+                  Itens do Pedido
+                </Text>
+                <VStack align="stretch" spacing={3}>
+                  {selectedPedido?.itens.map((item, index) => (
+                    <Flex key={index} justify="space-between" align="center">
+                      <Flex align="center" gap={3}>
+                        <Badge bg="whiteAlpha.200" color="brand.light" borderRadius="md" px={2} py={1}>
+                          {item.quantidade}x
+                        </Badge>
+                        <Text color="brand.light">{item.nome}</Text>
+                      </Flex>
+                      <Text color="brand.secondary" fontWeight="medium">
+                        R$ {(item.preco * item.quantidade).toFixed(2)}
+                      </Text>
+                    </Flex>
+                  ))}
+                </VStack>
+              </Box>
+
+              <Divider borderColor="whiteAlpha.200" my={2} />
+
+              <Flex justify="space-between" align="center">
+                <Text color="gray.300" fontSize="lg">Total da Comanda</Text>
+                <Text color="brand.secondary" fontSize="2xl" fontWeight="bold">
+                  R$ {selectedPedido ? calcularTotal(selectedPedido).toFixed(2) : "0.00"}
                 </Text>
               </Flex>
 
-              <Divider borderColor="whiteAlpha.300" />
-
-              <Text color="#E6B325" fontWeight="bold">
-                Itens do pedido:
-              </Text>
-
-              <VStack align="stretch" spacing={2}>
-                {selectedPedido?.itens.map((item, index) => (
-                  <Flex key={index} justify="space-between">
-                    <Text color="white">
-                      {item.quantidade}x {item.nome}
-                    </Text>
-                    <Text color="white">R$ {(item.preco * item.quantidade).toFixed(2)}</Text>
-                  </Flex>
-                ))}
-              </VStack>
-
-              <Divider borderColor="whiteAlpha.300" />
-
-              <Flex justify="space-between" fontWeight="bold">
-                <Text color="white">Total:</Text>
-                <Text color="#E6B325">R$ {selectedPedido ? calcularTotal(selectedPedido).toFixed(2) : "0.00"}</Text>
-              </Flex>
-
-              <HStack spacing={4} mt={4} justify="space-between">
-                <Flex gap={2}>
+              <HStack spacing={4} mt={6} justify="space-between">
+                <Flex gap={3}>
                   {selectedPedido?.status === "aberto" ? (
                     <Button
                       leftIcon={<FiEdit />}
                       as={RouterLink}
                       to={`/editar-pedido/${selectedPedido?.id}`}
-                      bg="#E6B325"
-                      color="black"
-                      _hover={{ bg: "#D6A315" }}
+                      variant="outline"
+                      color="brand.light"
+                      borderColor="brand.surfaceborder"
+                      _hover={{ bg: "whiteAlpha.100" }}
+                      size="md"
                     >
-                      Adicionar itens
+                      Editar
                     </Button>
                   ) : (
                     <Button
                       leftIcon={<FiEdit />}
                       onClick={() => selectedPedido && reabrirComanda(selectedPedido.id)}
-                      bg="#E6B325"
-                      color="black"
-                      _hover={{ bg: "#D6A315" }}
+                      variant="outline"
+                      color="brand.light"
+                      borderColor="brand.surfaceborder"
+                      _hover={{ bg: "whiteAlpha.100" }}
+                      size="md"
                     >
-                      Reabrir comanda
+                      Reabrir
                     </Button>
                   )}
 
                   <IconButton
-                    aria-label="Excluir comanda"
+                    aria-label="Excluir"
                     icon={<FiTrash2 />}
                     colorScheme="red"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => selectedPedido && excluirComanda(selectedPedido.id)}
                   />
                 </Flex>
@@ -404,22 +410,22 @@ const PedidosPage = () => {
                   <Button
                     leftIcon={<FiCreditCard />}
                     onClick={() => selectedPedido && fecharComanda(selectedPedido.id)}
-                    bg="#C25B02"
-                    color="white"
-                    _hover={{ bg: "#B24A01" }}
+                    variant="primary"
+                    size="md"
+                    px={6}
                   >
-                    Fechar comanda
+                    Fechar
                   </Button>
                 ) : (
                   <Button
                     leftIcon={<FiCreditCard />}
                     as={RouterLink}
                     to={`/pagamento/${selectedPedido?.id}`}
-                    bg="#C25B02"
-                    color="white"
-                    _hover={{ bg: "#B24A01" }}
+                    variant="primary"
+                    size="md"
+                    px={6}
                   >
-                    Ir para pagamento
+                    Pagamento
                   </Button>
                 )}
               </HStack>

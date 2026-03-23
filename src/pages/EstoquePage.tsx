@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef } from "react"
 import {
   Box,
+  Heading,
   Button,
   Flex,
   Table,
@@ -37,9 +37,13 @@ import {
   InputRightElement,
   VStack,
   Text,
+  ModalCloseButton,
 } from "@chakra-ui/react"
-import { FiEdit2, FiPlusCircle, FiTrash2, FiSearch, FiRefreshCw } from "react-icons/fi"
+import { motion } from "framer-motion"
+import { FiEdit2, FiPlusCircle, FiTrash2, FiSearch, FiRefreshCw, FiPackage } from "react-icons/fi"
 import { useData, type ItemEstoque } from "../context/DataContext"
+
+const MotionTr = motion(Tr)
 
 const EstoquePage = () => {
   const { estoque, addItemEstoque, updateItemEstoque, deleteItemEstoque } = useData()
@@ -68,17 +72,13 @@ const EstoquePage = () => {
 
   const initialRef = useRef(null)
 
-  // Obter categorias únicas para o filtro
   const categorias = ["todas", ...new Set(estoque.map((item) => item.categoria))]
 
-  // Filtrar itens de estoque
   const filteredEstoque = estoque.filter((item) => {
     const matchesSearch =
       item.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.categoria.toLowerCase().includes(searchTerm.toLowerCase())
-
     const matchesCategoria = categoriaFiltro === "todas" || item.categoria === categoriaFiltro
-
     return matchesSearch && matchesCategoria
   })
 
@@ -106,11 +106,10 @@ const EstoquePage = () => {
   }
 
   const handleSubmit = () => {
-    // Validar o formulário
     if (!formData.nome || !formData.categoria || formData.quantidade < 0 || formData.precoUnitario <= 0) {
       toast({
         title: "Erro",
-        description: "Por favor, preencha todos os campos corretamente",
+        description: "Por favor, preencha todos os campos corretamente.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -119,7 +118,6 @@ const EstoquePage = () => {
     }
 
     if (editId !== null) {
-      // Atualizar item existente
       updateItemEstoque({
         ...formData,
         id: editId,
@@ -127,26 +125,22 @@ const EstoquePage = () => {
       })
       toast({
         title: "Item atualizado",
-        description: `${formData.nome} foi atualizado no estoque.`,
+        description: `${formData.nome} atualizado.`,
         status: "success",
         duration: 3000,
-        isClosable: true,
       })
     } else {
-      // Adicionar novo item
       addItemEstoque({
         ...formData,
         ultimaAtualizacao: new Date(),
       })
       toast({
         title: "Item adicionado",
-        description: `${formData.nome} foi adicionado ao estoque.`,
+        description: `${formData.nome} adicionado.`,
         status: "success",
         duration: 3000,
-        isClosable: true,
       })
     }
-
     resetForm()
     onClose()
   }
@@ -167,14 +161,13 @@ const EstoquePage = () => {
   }
 
   const handleDelete = (id: number, nome: string) => {
-    if (window.confirm(`Tem certeza que deseja excluir "${nome}" do estoque?`)) {
+    if (window.confirm(`Tem certeza que deseja excluir "${nome}"?`)) {
       deleteItemEstoque(id)
       toast({
         title: "Item excluído",
-        description: `${nome} foi removido do estoque.`,
+        description: `${nome} foi removido.`,
         status: "error",
         duration: 3000,
-        isClosable: true,
       })
     }
   }
@@ -190,29 +183,16 @@ const EstoquePage = () => {
   const handleAjustarEstoque = () => {
     if (!itemAjuste) return
 
-    if (quantidadeAjuste <= 0) {
+    if (quantidadeAjuste <= 0 || !motivoAjuste) {
       toast({
         title: "Erro",
-        description: "A quantidade deve ser maior que zero",
+        description: "Preencha a quantidade (maior que zero) e o motivo.",
         status: "error",
         duration: 3000,
-        isClosable: true,
       })
       return
     }
 
-    if (!motivoAjuste) {
-      toast({
-        title: "Erro",
-        description: "Informe o motivo do ajuste",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      })
-      return
-    }
-
-    // Calcular nova quantidade
     let novaQuantidade = itemAjuste.quantidade
     if (tipoAjuste === "adicionar") {
       novaQuantidade += quantidadeAjuste
@@ -220,17 +200,15 @@ const EstoquePage = () => {
       if (quantidadeAjuste > itemAjuste.quantidade) {
         toast({
           title: "Erro",
-          description: "Não é possível remover mais do que existe em estoque",
+          description: "Estoque insuficiente para remover essa quantidade.",
           status: "error",
           duration: 3000,
-          isClosable: true,
         })
         return
       }
       novaQuantidade -= quantidadeAjuste
     }
 
-    // Atualizar o item
     updateItemEstoque({
       ...itemAjuste,
       quantidade: novaQuantidade,
@@ -239,79 +217,80 @@ const EstoquePage = () => {
 
     toast({
       title: "Estoque ajustado",
-      description: `${tipoAjuste === "adicionar" ? "Adicionado" : "Removido"} ${quantidadeAjuste} ${itemAjuste.unidade}(s) de ${itemAjuste.nome}`,
+      description: `${tipoAjuste === "adicionar" ? "Adicionado" : "Removido"} ${quantidadeAjuste} ${itemAjuste.unidade}(s)`,
       status: "success",
       duration: 3000,
-      isClosable: true,
     })
 
     onCloseAjuste()
   }
 
   return (
-    <Box maxW="1200px" mx="auto" p={4}>
-      <Flex justify="space-between" align="center" mb={6}>
-        <Button
-          bg="#C25B02"
-          color="white"
-          size="md"
-          borderRadius="full"
-          px={6}
-          py={2}
-          fontWeight="normal"
-          fontSize="md"
-          _hover={{ bg: "#B24A01" }}
-        >
-          Controle de Estoque
-        </Button>
+    <Box maxW="1400px" mx="auto" w="100%">
+      <Flex justify="space-between" align="center" mb={10} flexWrap="wrap" gap={4}>
+        <Box>
+          <Heading size="xl" color="brand.light" fontWeight="700">
+            Controle de Estoque
+          </Heading>
+          <Text color="gray.400" mt={1}>Gerenciamento de ingredientes e insumos.</Text>
+        </Box>
         <Button
           leftIcon={<FiPlusCircle />}
           onClick={() => {
             resetForm()
             onOpen()
           }}
-          bg="#C25B02"
-          color="white"
-          _hover={{ bg: "#B24A01" }}
+          variant="primary"
+          size="lg"
+          borderRadius="full"
+          px={8}
+          boxShadow="0 4px 15px rgba(255,107,0,0.4)"
         >
           Novo Item
         </Button>
       </Flex>
 
-      <Flex mb={6} gap={4} direction={{ base: "column", md: "row" }}>
-        <InputGroup maxW={{ base: "100%", md: "300px" }}>
+      <Flex mb={8} gap={4} direction={{ base: "column", md: "row" }} bg="brand.surface" p={4} borderRadius="2xl" border="1px solid" borderColor="brand.surfaceborder" backdropFilter="blur(16px)">
+        <InputGroup maxW={{ base: "100%", md: "400px" }}>
           <InputLeftElement pointerEvents="none">
-            <FiSearch color="gray.300" />
+            <FiSearch color="gray.400" />
           </InputLeftElement>
           <Input
-            placeholder="Buscar item..."
-            bg="black"
-            color="white"
+            placeholder="Buscar ingrediente..."
+            bg="whiteAlpha.50"
+            color="brand.light"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            borderColor="whiteAlpha.300"
+            border="1px solid"
+            borderColor="brand.surfaceborder"
+            borderRadius="full"
+            _focus={{ borderColor: "brand.primary", boxShadow: "0 0 0 1px #FF6B00" }}
           />
           {searchTerm && (
             <InputRightElement>
               <IconButton
-                aria-label="Limpar busca"
+                aria-label="Limpar"
                 icon={<FiRefreshCw />}
                 size="sm"
                 variant="ghost"
-                color="whiteAlpha.700"
+                color="brand.secondary"
                 onClick={() => setSearchTerm("")}
+                isRound
               />
             </InputRightElement>
           )}
         </InputGroup>
 
         <Select
-          maxW={{ base: "100%", md: "200px" }}
-          bg="black"
-          color="white"
-          borderColor="whiteAlpha.300"
+          maxW={{ base: "100%", md: "250px" }}
+          bg="whiteAlpha.50"
+          color="brand.light"
+          border="1px solid"
+          borderColor="brand.surfaceborder"
+          borderRadius="full"
           value={categoriaFiltro}
           onChange={(e) => setCategoriaFiltro(e.target.value)}
+          sx={{"& > option":{background:"#0F172A",color:"white"}}}
         >
           {categorias.map((categoria) => (
             <option key={categoria} value={categoria}>
@@ -321,301 +300,252 @@ const EstoquePage = () => {
         </Select>
       </Flex>
 
-      <Box bg="black" borderRadius="xl" p={4} overflowX="auto">
-        <Table variant="simple" colorScheme="whiteAlpha">
-          <Thead>
-            <Tr>
-              <Th color="#E6B325">Item</Th>
-              <Th color="#E6B325">Categoria</Th>
-              <Th color="#E6B325" isNumeric>
-                Quantidade
-              </Th>
-              <Th color="#E6B325" isNumeric>
-                Preço Un.
-              </Th>
-              <Th color="#E6B325">Última Atualização</Th>
-              <Th color="#E6B325">Status</Th>
-              <Th color="#E6B325" textAlign="center">
-                Ações
-              </Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {filteredEstoque.map((item) => (
-              <Tr key={item.id}>
-                <Td color="white">
-                  {item.nome}
-                  <Text fontSize="xs" color="whiteAlpha.700">
-                    Mínimo: {item.estoqueMinimo} {item.unidade}(s)
-                  </Text>
-                </Td>
-                <Td color="white">{item.categoria}</Td>
-                <Td color="white" isNumeric>
-                  {item.quantidade} {item.unidade}(s)
-                </Td>
-                <Td color="white" isNumeric>
-                  R$ {item.precoUnitario.toFixed(2)}
-                </Td>
-                <Td color="white" fontSize="sm">
-                  {new Date(item.ultimaAtualizacao).toLocaleString("pt-BR")}
-                </Td>
-                <Td>
-                  <Badge
-                    colorScheme={item.quantidade <= item.estoqueMinimo ? "red" : "green"}
-                    p={1}
-                    borderRadius="full"
-                    fontSize="xs"
-                  >
-                    {item.quantidade <= item.estoqueMinimo ? "Baixo" : "Adequado"}
-                  </Badge>
-                </Td>
-                <Td>
-                  <Flex justify="center" gap={2}>
-                    <IconButton
-                      aria-label="Ajustar estoque"
-                      icon={<FiRefreshCw />}
-                      size="sm"
-                      colorScheme="blue"
-                      onClick={() => handleAbrirAjuste(item)}
-                    />
-                    <IconButton
-                      aria-label="Editar item"
-                      icon={<FiEdit2 />}
-                      size="sm"
-                      colorScheme="yellow"
-                      onClick={() => handleEdit(item)}
-                    />
-                    <IconButton
-                      aria-label="Excluir item"
-                      icon={<FiTrash2 />}
-                      size="sm"
-                      colorScheme="red"
-                      onClick={() => handleDelete(item.id, item.nome)}
-                    />
-                  </Flex>
-                </Td>
-              </Tr>
-            ))}
-            {filteredEstoque.length === 0 && (
+      <Box variant="glass" borderRadius="2xl" overflow="hidden" boxShadow="xl">
+        <Box overflowX="auto">
+          <Table variant="unstyled">
+            <Thead bg="whiteAlpha.100" borderBottom="1px solid" borderColor="brand.surfaceborder">
               <Tr>
-                <Td colSpan={7} textAlign="center" color="white">
-                  Nenhum item encontrado.
-                </Td>
+                <Th color="brand.secondary" py={4} letterSpacing="wider">Item</Th>
+                <Th color="brand.secondary" py={4} letterSpacing="wider">Categoria</Th>
+                <Th color="brand.secondary" py={4} isNumeric letterSpacing="wider">Qtde</Th>
+                <Th color="brand.secondary" py={4} isNumeric letterSpacing="wider">Preço Un.</Th>
+                <Th color="brand.secondary" py={4} letterSpacing="wider">Status</Th>
+                <Th color="brand.secondary" py={4} textAlign="center" letterSpacing="wider">Ações</Th>
               </Tr>
-            )}
-          </Tbody>
-        </Table>
+            </Thead>
+            <Tbody>
+              {filteredEstoque.map((item, index) => {
+                const isBaixo = item.quantidade <= item.estoqueMinimo;
+                return (
+                  <MotionTr 
+                    key={item.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    borderBottom="1px solid" 
+                    borderColor="whiteAlpha.50"
+                    _hover={{ bg: "whiteAlpha.50" }}
+                  >
+                    <Td color="brand.light" py={5}>
+                      <Flex align="center" gap={3}>
+                        <Box p={2} bg="whiteAlpha.100" borderRadius="md"><FiPackage color="#FFD700" /></Box>
+                        <Box>
+                          <Text fontWeight="600" fontSize="md">{item.nome}</Text>
+                          <Text fontSize="xs" color="gray.400">Min: {item.estoqueMinimo} {item.unidade}(s)</Text>
+                        </Box>
+                      </Flex>
+                    </Td>
+                    <Td color="gray.300">{item.categoria}</Td>
+                    <Td color={isBaixo ? "red.400" : "brand.light"} isNumeric fontWeight={isBaixo ? "bold" : "normal"}>
+                      {item.quantidade} <Text as="span" fontSize="xs" color="gray.500">{item.unidade}</Text>
+                    </Td>
+                    <Td color="brand.secondary" isNumeric fontWeight="500">
+                      R$ {item.precoUnitario.toFixed(2)}
+                    </Td>
+                    <Td>
+                      <Badge
+                        colorScheme={isBaixo ? "red" : "green"}
+                        px={3}
+                        py={1}
+                        borderRadius="full"
+                        textTransform="uppercase"
+                        letterSpacing="wider"
+                        fontSize="xs"
+                        variant="subtle"
+                      >
+                        {isBaixo ? "Estoque Baixo" : "Estável"}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Flex justify="center" gap={2}>
+                        <IconButton
+                          aria-label="Ajustar"
+                          icon={<FiRefreshCw />}
+                          size="sm"
+                          variant="ghost"
+                          color="blue.300"
+                          _hover={{ bg: "blue.900" }}
+                          onClick={() => handleAbrirAjuste(item)}
+                          isRound
+                        />
+                        <IconButton
+                          aria-label="Editar"
+                          icon={<FiEdit2 />}
+                          size="sm"
+                          variant="ghost"
+                          color="brand.secondary"
+                          _hover={{ bg: "yellow.900" }}
+                          onClick={() => handleEdit(item)}
+                          isRound
+                        />
+                        <IconButton
+                          aria-label="Excluir"
+                          icon={<FiTrash2 />}
+                          size="sm"
+                          variant="ghost"
+                          color="red.400"
+                          _hover={{ bg: "red.900" }}
+                          onClick={() => handleDelete(item.id, item.nome)}
+                          isRound
+                        />
+                      </Flex>
+                    </Td>
+                  </MotionTr>
+                );
+              })}
+              {filteredEstoque.length === 0 && (
+                <Tr>
+                  <Td colSpan={6} textAlign="center" py={12} color="gray.500">
+                    <Flex direction="column" align="center">
+                      <FiPackage size={40} style={{ opacity: 0.5, marginBottom: '16px' }} />
+                      Nenhum item encontrado no estoque.
+                    </Flex>
+                  </Td>
+                </Tr>
+              )}
+            </Tbody>
+          </Table>
+        </Box>
       </Box>
 
-      {/* Modal de Criar/Editar Item */}
-      <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={initialRef}>
-        <ModalOverlay />
-        <ModalContent bg="black" borderColor="#E6B325" borderWidth={1}>
-          <ModalHeader color="#E6B325">{editId !== null ? "Editar Item" : "Adicionar Novo Item"}</ModalHeader>
+      {/* Modal Editar/Adicionar */}
+      <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={initialRef} isCentered motionPreset="slideInBottom">
+        <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
+        <ModalContent bg="brand.surface" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl">
+          <ModalHeader color="brand.light">{editId !== null ? "Editar Item" : "Novo Item de Estoque"}</ModalHeader>
+          <ModalCloseButton color="gray.400" />
           <ModalBody pb={6}>
-            <FormControl mb={4} isRequired>
-              <FormLabel color="white">Nome do Item</FormLabel>
-              <Input
-                ref={initialRef}
-                placeholder="Ex: Pão para Hot Dog"
-                name="nome"
-                value={formData.nome}
-                onChange={handleChange}
-                bg="whiteAlpha.100"
-                color="white"
-              />
-            </FormControl>
-
-            <FormControl mb={4} isRequired>
-              <FormLabel color="white">Categoria</FormLabel>
-              <Input
-                placeholder="Ex: Pães, Carnes, Bebidas"
-                name="categoria"
-                value={formData.categoria}
-                onChange={handleChange}
-                bg="whiteAlpha.100"
-                color="white"
-              />
-            </FormControl>
-
-            <Flex gap={4} mb={4}>
+            <VStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel color="white">Quantidade</FormLabel>
-                <NumberInput
-                  min={0}
-                  value={formData.quantidade}
-                  onChange={(_, val) => handleNumberChange("quantidade", val)}
-                  bg="whiteAlpha.100"
-                  color="white"
-                >
-                  <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper color="white" />
-                    <NumberDecrementStepper color="white" />
-                  </NumberInputStepper>
-                </NumberInput>
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel color="white">Unidade</FormLabel>
-                <Select
-                  name="unidade"
-                  value={formData.unidade}
+                <FormLabel color="gray.400" fontSize="sm">Nome do Item</FormLabel>
+                <Input
+                  ref={initialRef}
+                  placeholder="Ex: Pão para Hot Dog"
+                  name="nome"
+                  value={formData.nome}
                   onChange={handleChange}
                   bg="whiteAlpha.100"
-                  color="white"
-                >
-                  <option value="unidade">Unidade</option>
-                  <option value="kg">Kg</option>
-                  <option value="g">Gramas</option>
-                  <option value="l">Litros</option>
-                  <option value="ml">ml</option>
-                  <option value="caixa">Caixa</option>
-                  <option value="pacote">Pacote</option>
-                </Select>
-              </FormControl>
-            </Flex>
-
-            <Flex gap={4} mb={4}>
-              <FormControl isRequired>
-                <FormLabel color="white">Preço Unitário (R$)</FormLabel>
-                <NumberInput
-                  min={0}
-                  step={0.01}
-                  precision={2}
-                  value={formData.precoUnitario}
-                  onChange={(_, val) => handleNumberChange("precoUnitario", val)}
-                  bg="whiteAlpha.100"
-                  color="white"
-                >
-                  <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper color="white" />
-                    <NumberDecrementStepper color="white" />
-                  </NumberInputStepper>
-                </NumberInput>
+                  color="brand.light"
+                  border="1px solid"
+                  borderColor="brand.surfaceborder"
+                />
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel color="white">Estoque Mínimo</FormLabel>
-                <NumberInput
-                  min={0}
-                  value={formData.estoqueMinimo}
-                  onChange={(_, val) => handleNumberChange("estoqueMinimo", val)}
+                <FormLabel color="gray.400" fontSize="sm">Categoria</FormLabel>
+                <Input
+                  placeholder="Ex: Pães, Carnes, Bebidas"
+                  name="categoria"
+                  value={formData.categoria}
+                  onChange={handleChange}
                   bg="whiteAlpha.100"
-                  color="white"
-                >
-                  <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper color="white" />
-                    <NumberDecrementStepper color="white" />
-                  </NumberInputStepper>
-                </NumberInput>
+                  color="brand.light"
+                  border="1px solid"
+                  borderColor="brand.surfaceborder"
+                />
               </FormControl>
-            </Flex>
-          </ModalBody>
-          <ModalFooter>
-            <Button colorScheme="gray" mr={3} onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button bg="#C25B02" color="white" onClick={handleSubmit} _hover={{ bg: "#B24A01" }}>
-              {editId !== null ? "Atualizar" : "Adicionar"}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
-      {/* Modal de Ajuste de Estoque */}
-      <Modal isOpen={isOpenAjuste} onClose={onCloseAjuste}>
-        <ModalOverlay />
-        <ModalContent bg="black" borderColor="#E6B325" borderWidth={1}>
-          <ModalHeader color="#E6B325">Ajustar Estoque</ModalHeader>
-          <ModalBody pb={6}>
-            {itemAjuste && (
-              <VStack spacing={4} align="stretch">
-                <Box>
-                  <Text color="white" fontWeight="bold">
-                    Item: {itemAjuste.nome}
-                  </Text>
-                  <Text color="whiteAlpha.700">
-                    Estoque atual: {itemAjuste.quantidade} {itemAjuste.unidade}(s)
-                  </Text>
-                </Box>
-
+              <Flex gap={4} w="100%">
                 <FormControl isRequired>
-                  <FormLabel color="white">Tipo de Ajuste</FormLabel>
-                  <Select
-                    value={tipoAjuste}
-                    onChange={(e) => setTipoAjuste(e.target.value as "adicionar" | "remover")}
-                    bg="whiteAlpha.100"
-                    color="white"
-                  >
-                    <option value="adicionar">Entrada de Estoque (Adicionar)</option>
-                    <option value="remover">Saída de Estoque (Remover)</option>
-                  </Select>
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel color="white">Quantidade</FormLabel>
-                  <NumberInput
-                    min={1}
-                    value={quantidadeAjuste}
-                    onChange={(_, val) => setQuantidadeAjuste(val)}
-                    bg="whiteAlpha.100"
-                    color="white"
-                  >
-                    <NumberInputField />
+                  <FormLabel color="gray.400" fontSize="sm">Quantidade</FormLabel>
+                  <NumberInput min={0} value={formData.quantidade} onChange={(_, val) => handleNumberChange("quantidade", val)}>
+                    <NumberInputField bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" />
                     <NumberInputStepper>
-                      <NumberIncrementStepper color="white" />
-                      <NumberDecrementStepper color="white" />
+                      <NumberIncrementStepper color="brand.secondary" />
+                      <NumberDecrementStepper color="brand.secondary" />
                     </NumberInputStepper>
                   </NumberInput>
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel color="white">Motivo do Ajuste</FormLabel>
-                  <Input
-                    placeholder="Ex: Compra de fornecedor, Perda, Extravio..."
-                    value={motivoAjuste}
-                    onChange={(e) => setMotivoAjuste(e.target.value)}
-                    bg="whiteAlpha.100"
-                    color="white"
-                  />
+                  <FormLabel color="gray.400" fontSize="sm">Unidade</FormLabel>
+                  <Select name="unidade" value={formData.unidade} onChange={handleChange} bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" sx={{"& > option":{background:"#0F172A"}}}>
+                    <option value="unidade">Unidade</option>
+                    <option value="kg">Kg</option>
+                    <option value="g">Gramas</option>
+                    <option value="l">Litros</option>
+                    <option value="ml">ml</option>
+                    <option value="caixa">Caixa</option>
+                    <option value="pacote">Pacote</option>
+                  </Select>
+                </FormControl>
+              </Flex>
+
+              <Flex gap={4} w="100%">
+                <FormControl isRequired>
+                  <FormLabel color="gray.400" fontSize="sm">Preço (R$)</FormLabel>
+                  <NumberInput min={0} step={0.01} precision={2} value={formData.precoUnitario} onChange={(_, val) => handleNumberChange("precoUnitario", val)}>
+                    <NumberInputField bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper color="brand.secondary" />
+                      <NumberDecrementStepper color="brand.secondary" />
+                    </NumberInputStepper>
+                  </NumberInput>
                 </FormControl>
 
-                {tipoAjuste === "adicionar" && (
-                  <Box bg="green.800" p={2} borderRadius="md">
-                    <Text color="white">
-                      Novo estoque após ajuste: {itemAjuste.quantidade + quantidadeAjuste} {itemAjuste.unidade}(s)
-                    </Text>
-                  </Box>
-                )}
+                <FormControl isRequired>
+                  <FormLabel color="gray.400" fontSize="sm">Alerta (Mín.)</FormLabel>
+                  <NumberInput min={0} value={formData.estoqueMinimo} onChange={(_, val) => handleNumberChange("estoqueMinimo", val)}>
+                    <NumberInputField bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper color="brand.secondary" />
+                      <NumberDecrementStepper color="brand.secondary" />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+              </Flex>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" color="gray.400" mr={3} onClick={onClose}>Cancelar</Button>
+            <Button variant="primary" onClick={handleSubmit}>{editId !== null ? "Atualizar Item" : "Salvar Item"}</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
-                {tipoAjuste === "remover" && (
-                  <Box bg={quantidadeAjuste > itemAjuste.quantidade ? "red.800" : "orange.800"} p={2} borderRadius="md">
-                    <Text color="white">
-                      {quantidadeAjuste > itemAjuste.quantidade
-                        ? "Erro: Quantidade a remover maior que o estoque atual!"
-                        : `Novo estoque após ajuste: ${itemAjuste.quantidade - quantidadeAjuste} ${itemAjuste.unidade}(s)`}
-                    </Text>
-                  </Box>
-                )}
+      {/* Modal Ajuste */}
+      <Modal isOpen={isOpenAjuste} onClose={onCloseAjuste} isCentered>
+        <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
+        <ModalContent bg="brand.surface" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl">
+          <ModalHeader color="brand.light">Ajustar Quantidade</ModalHeader>
+          <ModalCloseButton color="gray.400" />
+          <ModalBody pb={6}>
+            {itemAjuste && (
+              <VStack spacing={5} align="stretch">
+                <Box bg="whiteAlpha.100" p={4} borderRadius="lg" border="1px dashed" borderColor="brand.surfaceborder">
+                  <Text color="brand.secondary" fontWeight="bold" fontSize="lg">{itemAjuste.nome}</Text>
+                  <Text color="gray.400" mt={1}>Atual: {itemAjuste.quantidade} {itemAjuste.unidade}(s)</Text>
+                </Box>
+
+                <FormControl isRequired>
+                  <FormLabel color="gray.400">Operação</FormLabel>
+                  <Select value={tipoAjuste} onChange={(e) => setTipoAjuste(e.target.value as "adicionar" | "remover")} bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" sx={{"& > option":{background:"#0F172A"}}}>
+                    <option value="adicionar">Adicionar (+)</option>
+                    <option value="remover">Remover (-)</option>
+                  </Select>
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel color="gray.400">Quantidade</FormLabel>
+                  <NumberInput min={1} value={quantidadeAjuste} onChange={(_, val) => setQuantidadeAjuste(val)}>
+                    <NumberInputField bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper color="brand.secondary" />
+                      <NumberDecrementStepper color="brand.secondary" />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel color="gray.400">Motivo</FormLabel>
+                  <Input placeholder="Desperdício, nova compra, etc." value={motivoAjuste} onChange={(e) => setMotivoAjuste(e.target.value)} bg="whiteAlpha.100" color="brand.light" borderColor="brand.surfaceborder" />
+                </FormControl>
               </VStack>
             )}
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="gray" mr={3} onClick={onCloseAjuste}>
-              Cancelar
-            </Button>
-            <Button
-              bg="#C25B02"
-              color="white"
-              onClick={handleAjustarEstoque}
-              _hover={{ bg: "#B24A01" }}
-              isDisabled={tipoAjuste === "remover" && quantidadeAjuste > (itemAjuste?.quantidade || 0)}
-            >
-              Confirmar Ajuste
-            </Button>
+            <Button variant="ghost" color="gray.400" mr={3} onClick={onCloseAjuste}>Cancelar</Button>
+            <Button variant="primary" onClick={handleAjustarEstoque}>Confirmar Ajuste</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

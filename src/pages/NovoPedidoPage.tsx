@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Box,
   Heading,
@@ -30,33 +30,67 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
+  ModalCloseButton,
+  Checkbox,
+  HStack,
 } from "@chakra-ui/react"
+import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
-import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart, FiUser } from "react-icons/fi"
-import { useData, type ItemPedido, type Cliente } from "../context/DataContext"
+import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart, FiUser, FiTag } from "react-icons/fi"
+import { useData, type ItemPedido, type Cliente, Produto } from "../context/DataContext"
+
+const MotionBox = motion(Box)
+const MotionGridItem = motion(GridItem)
+
+// Hardcoded possible extras/removals for demonstration
+const OPCOES_ADICIONAIS = [
+  { nome: "Bacon +", preco: 2.50 },
+  { nome: "Salsicha Extra", preco: 3.00 },
+  { nome: "Queijo Cheddar", preco: 2.00 },
+  { nome: "Batata Palha Extra", preco: 1.50 }
+]
+const OPCOES_REMOVER = [
+  "Sem Milho",
+  "Sem Ervilha",
+  "Sem Maionese",
+  "Sem Ketchup",
+  "Sem Mostarda"
+]
 
 const NovoPedidoPage = () => {
   const navigate = useNavigate()
   const toast = useToast()
   const { produtos, addPedido, clientes, addCliente, getClienteByNome } = useData()
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  
+  // Modals hooks
+  const { isOpen: isClientOpen, onOpen: onClientOpen, onClose: onClientClose } = useDisclosure()
+  const { isOpen: isExtraOpen, onOpen: onExtraOpen, onClose: onExtraClose } = useDisclosure()
 
+  // General State
   const [itensPedido, setItensPedido] = useState<ItemPedido[]>([])
   const [cliente, setCliente] = useState("")
   const [telefoneCliente, setTelefoneCliente] = useState("")
   const [mesa, setMesa] = useState("")
-  const [observacaoItem, setObservacaoItem] = useState<{ [key: number]: string }>({})
+  const [observacaoGlobal, setObservacaoGlobal] = useState<{ [key: number]: string }>({})
   const [clienteExistente, setClienteExistente] = useState<Cliente | null>(null)
   const [clienteSugestoes, setClienteSugestoes] = useState<Cliente[]>([])
 
-  // Obter categorias únicas
+  // State for the Extras Modal
+  const [produtoSelecionadoParaExtras, setProdutoSelecionadoParaExtras] = useState<Produto | null>(null)
+  const [adicionaisSelecionados, setAdicionaisSelecionados] = useState<{nome: string, preco: number}[]>([])
+  const [removidosSelecionados, setRemovidosSelecionados] = useState<string[]>([])
+  const [obsModal, setObsModal] = useState("")
+
   const categorias = [...new Set(produtos.map((p) => p.categoria))]
+
+  // Refs for keyboard shortcuts
+  const clienteInputRef = useRef<HTMLInputElement>(null)
+  const mesaInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (cliente.length > 2) {
       const sugestoes = clientes.filter((c) => c.nome.toLowerCase().includes(cliente.toLowerCase())).slice(0, 5)
       setClienteSugestoes(sugestoes)
-
       const existente = getClienteByNome(cliente)
       setClienteExistente(existente || null)
     } else {
@@ -65,43 +99,103 @@ const NovoPedidoPage = () => {
     }
   }, [cliente, clientes, getClienteByNome])
 
-  const adicionarItem = (produto: (typeof produtos)[0]) => {
-    const itemExistente = itensPedido.find((item) => item.produto.id === produto.id)
+  useEffect(() => {
+    // Keyboard shortcuts listener
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F1") {
+        e.preventDefault()
+        clienteInputRef.current?.focus()
+      } else if (e.key === "F2") {
+        e.preventDefault()
+        mesaInputRef.current?.focus()
+      } else if (e.key === "F12") {
+        e.preventDefault()
+        salvarComanda()
+      }
+    }
 
-    if (itemExistente) {
-      setItensPedido(
-        itensPedido.map((item) =>
-          item.produto.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item,
-        ),
-      )
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [cliente, mesa, itensPedido]) // Re-bind function with latest state just in case F12 uses it
+
+  const abrirModalExtras = (produto: Produto) => {
+    // Se for Hot Dog, propomos upsell. Senão, adicionamos direto.
+    if (produto.categoria.toLowerCase().includes("hot dog")) {
+      setProdutoSelecionadoParaExtras(produto)
+      setAdicionaisSelecionados([])
+      setRemovidosSelecionados([])
+      setObsModal(observacaoGlobal[produto.id] || "")
+      onExtraOpen()
     } else {
-      const novoItem = {
+      adicionarItemDireto(produto, [], [], observacaoGlobal[produto.id] || "")
+    }
+  }
+
+  const confirmarExtrasItem = () => {
+    if (!produtoSelecionadoParaExtras) return
+    adicionarItemDireto(produtoSelecionadoParaExtras, adicionaisSelecionados, removidosSelecionados, obsModal)
+    onExtraClose()
+  }
+
+  const adicionarItemDireto = (
+    produto: Produto, 
+    adicionais: {nome: string, preco: number}[] = [], 
+    removidos: string[] = [], 
+    observacao: string = ""
+  ) => {
+    // Em pedidos complexos com adicionais diferentes, o ideal é não agrupar se forem diferentes.
+    // Mas para simplificar, se os adicionais forem EXATAMENTE os mesmos, agrupamos.
+    // Desta vez, vamos tratar cada clique de 'Adicionar' (especialmente com extras) como uma entidade que pode ou não agrupar.
+    const hasExtras = adicionais.length > 0 || removidos.length > 0 || observacao.trim() !== ""
+    
+    // Procura item exato
+    const itemExistenteIndex = itensPedido.findIndex((item) => {
+        if (item.produto.id !== produto.id) return false
+        // Só agrupa se não tiver extras ou se ambos tiverem 0 extras (e sem obs). Com extras, sempre entra como nova linha (para ser customizada por lanche).
+        return !hasExtras && (!item.adicionais || item.adicionais.length === 0) && (!item.removidos || item.removidos.length === 0) && (!item.observacao)
+    })
+
+    if (itemExistenteIndex >= 0) {
+      const novaLista = [...itensPedido]
+      novaLista[itemExistenteIndex].quantidade += 1
+      setItensPedido(novaLista)
+    } else {
+      const novoItem: ItemPedido = {
         produto,
         quantidade: 1,
-        observacao: observacaoItem[produto.id] || "",
+        observacao,
+        adicionais,
+        removidos
       }
       setItensPedido([...itensPedido, novoItem])
     }
+    
+    // Limpa a observação global do input simples se ela foi usada
+    setObservacaoGlobal({ ...observacaoGlobal, [produto.id]: "" })
   }
 
-  const atualizarQuantidade = (produtoId: number, quantidade: number) => {
+  const atualizarQuantidade = (indexDaLinha: number, quantidade: number) => {
     if (quantidade === 0) {
-      setItensPedido(itensPedido.filter((item) => item.produto.id !== produtoId))
+      setItensPedido(itensPedido.filter((_, i) => i !== indexDaLinha))
     } else {
-      setItensPedido(itensPedido.map((item) => (item.produto.id === produtoId ? { ...item, quantidade } : item)))
+      setItensPedido(itensPedido.map((item, i) => (i === indexDaLinha ? { ...item, quantidade } : item)))
     }
   }
 
-  const atualizarObservacao = (produtoId: number, observacao: string) => {
-    setItensPedido(itensPedido.map((item) => (item.produto.id === produtoId ? { ...item, observacao } : item)))
+  const removerItem = (indexDaLinha: number) => {
+    setItensPedido(itensPedido.filter((_, i) => i !== indexDaLinha))
+  }
+
+  const calcularPrecoUnitarioItem = (item: ItemPedido) => {
+    let precoBase = item.produto.preco
+    if (item.adicionais) {
+      precoBase += item.adicionais.reduce((acc, adic) => acc + adic.preco, 0)
+    }
+    return precoBase
   }
 
   const calcularTotal = () => {
-    return itensPedido.reduce((total, item) => total + item.produto.preco * item.quantidade, 0)
-  }
-
-  const removerItem = (produtoId: number) => {
-    setItensPedido(itensPedido.filter((item) => item.produto.id !== produtoId))
+    return itensPedido.reduce((total, item) => total + (calcularPrecoUnitarioItem(item) * item.quantidade), 0)
   }
 
   const handleSelecionarCliente = (clienteSelecionado: Cliente) => {
@@ -111,76 +205,23 @@ const NovoPedidoPage = () => {
     setClienteSugestoes([])
   }
 
-  const handleNovoCliente = () => {
-    onOpen()
-  }
-
   const salvarNovoCliente = () => {
     if (!cliente.trim() || !telefoneCliente.trim()) {
-      toast({
-        title: "Erro",
-        description: "Por favor, preencha o nome e telefone do cliente",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      })
+      toast({ title: "Erro", description: "Preencha o nome e telefone do cliente", status: "error", duration: 3000, isClosable: true })
       return
     }
-
-    const novoCliente = addCliente({
-      nome: cliente,
-      telefone: telefoneCliente,
-      historicoPedidos: [],
-    })
-
+    const novoCliente = addCliente({ nome: cliente, telefone: telefoneCliente, historicoPedidos: [] })
     setClienteExistente(novoCliente)
-
-    toast({
-      title: "Cliente adicionado",
-      description: `Cliente ${novoCliente.nome} adicionado com sucesso!`,
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    })
-
-    onClose()
+    toast({ title: "Cadastrado", description: `Cliente cadastrado!`, status: "success", duration: 3000 })
+    onClientClose()
   }
 
   const salvarComanda = () => {
-    if (itensPedido.length === 0) {
-      toast({
-        title: "Erro",
-        description: "Adicione pelo menos um item à comanda",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      })
+    if (itensPedido.length === 0 || !cliente || !mesa) {
+      toast({ title: "Atenção", description: "Preencha cliente, mesa e adicione pelo menos um item.", status: "warning", duration: 3000, isClosable: true })
       return
     }
 
-    if (!cliente) {
-      toast({
-        title: "Erro",
-        description: "Informe o nome do cliente",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      })
-      return
-    }
-
-    if (!mesa) {
-      toast({
-        title: "Erro",
-        description: "Informe a mesa ou balcão",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      })
-      return
-    }
-
-    // Criar o pedido com os dados atuais
     const valorTotal = calcularTotal()
     const novoPedido = addPedido({
       clienteId: clienteExistente?.id,
@@ -191,404 +232,342 @@ const NovoPedidoPage = () => {
         quantidade: item.quantidade,
         preco: item.produto.preco,
         observacao: item.observacao,
+        adicionais: item.adicionais,
+        removidos: item.removidos
       })),
       status: "aberto",
       timestamp: new Date(),
       valorTotal,
     })
 
-    toast({
-      title: "Comanda criada",
-      description: `Comanda #${novoPedido.id} criada com sucesso!`,
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    })
-
-    // Redirecionar para a página de pedidos
+    toast({ title: "Sucesso!", description: `Comanda criada.`, status: "success", duration: 3000 })
     navigate(`/pedidos`)
   }
 
-  return (
-    <Box maxW="1200px" mx="auto" p={4}>
-      <Button
-        bg="#C25B02"
-        color="white"
-        size="md"
-        borderRadius="full"
-        px={6}
-        py={2}
-        fontWeight="normal"
-        fontSize="md"
-        mb={6}
-        _hover={{ bg: "#B24A01" }}
-      >
-        Nova Comanda
-      </Button>
+  const toggleAdicional = (adc: {nome: string, preco: number}) => {
+    if (adicionaisSelecionados.some(a => a.nome === adc.nome)) {
+      setAdicionaisSelecionados(adicionaisSelecionados.filter(a => a.nome !== adc.nome))
+    } else {
+      setAdicionaisSelecionados([...adicionaisSelecionados, adc])
+    }
+  }
 
-      <Flex direction={{ base: "column", md: "row" }} gap={6}>
-        {/* Informações da comanda e lista de produtos */}
-        <Box flex="2">
-          <Box bg="black" p={4} borderRadius="md" mb={6}>
-            <Heading size="md" mb={4} color="#E6B325">
-              Informações da Comanda
+  const toggleRemover = (rem: string) => {
+    if (removidosSelecionados.includes(rem)) {
+      setRemovidosSelecionados(removidosSelecionados.filter(r => r !== rem))
+    } else {
+      setRemovidosSelecionados([...removidosSelecionados, rem])
+    }
+  }
+
+  return (
+    <Box maxW="1400px" mx="auto" w="100%">
+      <Flex justify="space-between" align="center" mb={8} flexWrap="wrap">
+        <Heading size="xl" color="brand.light" fontWeight="700">Nova Comanda</Heading>
+        <Flex gap={2} bg="blackAlpha.400" p={2} borderRadius="md" border="1px dashed" borderColor="whiteAlpha.200">
+           <Text color="gray.400" fontSize="xs"><Badge>F1</Badge> Cliente</Text>
+           <Text color="gray.400" fontSize="xs"><Badge>F2</Badge> Mesa</Text>
+           <Text color="brand.primary" fontSize="xs"><Badge colorScheme="orange">F12</Badge> Finalizar</Text>
+        </Flex>
+      </Flex>
+
+      <Flex direction={{ base: "column", lg: "row" }} gap={8} align="start">
+        
+        {/* Esquerda: Informações e Produtos */}
+        <Box flex="2" w="100%">
+          <Box variant="glass" p={6} mb={8} borderRadius="2xl">
+            <Heading size="md" mb={6} color="brand.primary" letterSpacing="wide" textTransform="uppercase" fontSize="sm">
+              Detalhes do Pedido
             </Heading>
 
-            <Flex gap={4} direction={{ base: "column", sm: "row" }}>
-              <FormControl position="relative">
-                <FormLabel color="white">Cliente</FormLabel>
+            <Flex gap={6} direction={{ base: "column", md: "row" }}>
+              <FormControl position="relative" flex="1">
+                <FormLabel color="gray.400" fontSize="sm">Cliente</FormLabel>
                 <Flex>
                   <Input
+                    ref={clienteInputRef}
                     placeholder="Nome do cliente"
                     value={cliente}
                     onChange={(e) => setCliente(e.target.value)}
                     bg="whiteAlpha.100"
-                    color="white"
-                    _placeholder={{ color: "whiteAlpha.500" }}
+                    color="brand.light"
+                    border="1px solid"
+                    borderColor="brand.surfaceborder"
+                    _placeholder={{ color: "whiteAlpha.400" }}
+                    _focus={{ borderColor: "brand.primary", boxShadow: "0 0 0 1px #FF6B00" }}
                   />
                   <IconButton
                     aria-label="Adicionar cliente"
                     icon={<FiUser />}
-                    ml={2}
-                    onClick={handleNovoCliente}
-                    colorScheme="yellow"
+                    ml={3}
+                    onClick={onClientOpen}
+                    variant="outline"
+                    color="brand.secondary"
+                    borderColor="brand.surfaceborder"
+                    _hover={{ bg: "whiteAlpha.200" }}
                   />
                 </Flex>
                 {clienteSugestoes.length > 0 && (
-                  <Box
-                    position="absolute"
-                    zIndex="10"
-                    bg="black"
-                    width="100%"
-                    borderRadius="md"
-                    mt={1}
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                  >
+                  <Box position="absolute" zIndex="10" bg="brand.darker" width="100%" borderRadius="md" mt={2} border="1px solid" borderColor="brand.surfaceborder" boxShadow="xl">
                     {clienteSugestoes.map((c) => (
-                      <Box
-                        key={c.id}
-                        p={2}
-                        cursor="pointer"
-                        _hover={{ bg: "whiteAlpha.200" }}
-                        onClick={() => handleSelecionarCliente(c)}
-                      >
-                        <Text color="white">{c.nome}</Text>
-                        {c.telefone && (
-                          <Text fontSize="xs" color="whiteAlpha.700">
-                            {c.telefone}
-                          </Text>
-                        )}
+                      <Box key={c.id} p={3} cursor="pointer" _hover={{ bg: "whiteAlpha.100" }} onClick={() => handleSelecionarCliente(c)} borderBottom="1px solid" borderColor="whiteAlpha.100" _last={{ borderBottom: "none" }}>
+                        <Text color="brand.light" fontWeight="medium">{c.nome}</Text>
+                        {c.telefone && <Text fontSize="xs" color="gray.400">{c.telefone}</Text>}
                       </Box>
                     ))}
                   </Box>
                 )}
               </FormControl>
 
-              <FormControl>
-                <FormLabel color="white">Mesa/Balcão</FormLabel>
+              <FormControl flex="1">
+                <FormLabel color="gray.400" fontSize="sm">Mesa/Senhas</FormLabel>
                 <Input
-                  placeholder="Ex: Mesa 1, Balcão 2, Delivery"
+                  ref={mesaInputRef}
+                  placeholder="Ex: Mesa 1, Viagem"
                   value={mesa}
                   onChange={(e) => setMesa(e.target.value)}
                   bg="whiteAlpha.100"
-                  color="white"
-                  _placeholder={{ color: "whiteAlpha.500" }}
+                  color="brand.light"
+                  border="1px solid"
+                  borderColor="brand.surfaceborder"
+                  _placeholder={{ color: "whiteAlpha.400" }}
+                  _focus={{ borderColor: "brand.primary", boxShadow: "0 0 0 1px #FF6B00" }}
                 />
               </FormControl>
             </Flex>
           </Box>
 
-          <Tabs variant="enclosed" colorScheme="yellow" bg="#E6B325" borderRadius="md">
-            <TabList>
-              <Tab _selected={{ bg: "#C25B02", color: "white" }}>Todos</Tab>
-              {categorias.map((categoria) => (
-                <Tab key={categoria} _selected={{ bg: "#C25B02", color: "white" }}>
-                  {categoria}
-                </Tab>
-              ))}
-            </TabList>
+          <Box variant="glass" borderRadius="2xl" overflow="hidden">
+            <Tabs variant="soft-rounded" colorScheme="orange" p={4}>
+              <TabList mb={4} overflowX="auto" pb={2} css={{"&::-webkit-scrollbar":{display:"none"}}}>
+                <Tab color="brand.light" _selected={{ bg: "brand.primary", color: "white" }}>Todos</Tab>
+                {categorias.map((cat) => (
+                  <Tab key={cat} color="brand.light" _selected={{ bg: "brand.primary", color: "white" }}>
+                    {cat}
+                  </Tab>
+                ))}
+              </TabList>
 
-            <TabPanels bg="black" borderBottomRadius="md">
-              <TabPanel>
-                <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
-                  {produtos
-                    .filter((p) => p.ativo)
-                    .map((produto) => (
-                      <GridItem
-                        key={produto.id}
-                        bg="#E6B325"
-                        p={4}
-                        borderRadius="md"
-                        transition="all 0.3s"
-                        _hover={{ bg: "#D6A315" }}
+              <TabPanels>
+                <TabPanel px={0}>
+                  <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
+                    {produtos.filter((p) => p.ativo).map((produto, idx) => (
+                      <MotionGridItem
+                        key={produto.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }}
+                        bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100"
+                        whileHover={{ y: -5, boxShadow: "0 5px 15px rgba(0,0,0,0.3)" }}
                       >
-                        <Flex direction="column" align="center">
-                          <Image
-                            src={produto.imagem || "/placeholder.svg"}
-                            alt={produto.nome}
-                            boxSize="100px"
-                            objectFit="cover"
-                            borderRadius="md"
-                            mb={3}
-                          />
-                          <Text fontWeight="bold" mb={1}>
-                            {produto.nome}
-                          </Text>
-                          <Text mb={3}>R$ {produto.preco.toFixed(2)}</Text>
-
-                          <Flex width="100%" justify="space-between" align="center">
+                        <Flex direction="column" h="100%">
+                          {produto.imagem && <Image src={produto.imagem} alt={produto.nome} h="120px" w="100%" objectFit="cover" borderRadius="lg" mb={4} />}
+                          <Text fontWeight="bold" color="brand.light" fontSize="lg" mb={1}>{produto.nome}</Text>
+                          <Text color="brand.secondary" fontWeight="600" mb={4}>R$ {produto.preco.toFixed(2)}</Text>
+                          <Box mt="auto">
                             <Input
-                              placeholder="Observação"
-                              size="sm"
-                              value={observacaoItem[produto.id] || ""}
-                              onChange={(e) =>
-                                setObservacaoItem({
-                                  ...observacaoItem,
-                                  [produto.id]: e.target.value,
-                                })
-                              }
-                              bg="white"
-                              color="black"
-                              _placeholder={{ color: "gray.500" }}
+                              placeholder="Observação rápida" size="sm" value={observacaoGlobal[produto.id] || ""} onChange={(e) => setObservacaoGlobal({ ...observacaoGlobal, [produto.id]: e.target.value })}
+                              bg="whiteAlpha.100" border="none" color="brand.light" mb={3}
                             />
-                            <IconButton
-                              aria-label="Adicionar item"
-                              icon={<FiPlus />}
-                              size="sm"
-                              ml={2}
-                              bg="#C25B02"
-                              color="white"
-                              onClick={() => adicionarItem(produto)}
-                              _hover={{ bg: "#B24A01" }}
-                            />
-                          </Flex>
+                            <Button
+                              w="100%" size="sm" leftIcon={<FiPlus />} variant="outline" borderColor="brand.primary" color="brand.primary"
+                              _hover={{ bg: "brand.primary", color: "white" }} onClick={() => abrirModalExtras(produto)}
+                            >
+                              Adicionar
+                            </Button>
+                          </Box>
                         </Flex>
-                      </GridItem>
+                      </MotionGridItem>
                     ))}
-                </Grid>
-              </TabPanel>
-
-              {categorias.map((categoria) => (
-                <TabPanel key={categoria}>
-                  <Grid
-                    templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }}
-                    gap={4}
-                  >
-                    {produtos
-                      .filter((produto) => produto.categoria === categoria && produto.ativo)
-                      .map((produto) => (
-                        <GridItem
-                          key={produto.id}
-                          bg="#E6B325"
-                          p={4}
-                          borderRadius="md"
-                          transition="all 0.3s"
-                          _hover={{ bg: "#D6A315" }}
-                        >
-                          <Flex direction="column" align="center">
-                            <Image
-                              src={produto.imagem || "/placeholder.svg"}
-                              alt={produto.nome}
-                              boxSize="100px"
-                              objectFit="cover"
-                              borderRadius="md"
-                              mb={3}
-                            />
-                            <Text fontWeight="bold" mb={1}>
-                              {produto.nome}
-                            </Text>
-                            <Text mb={3}>R$ {produto.preco.toFixed(2)}</Text>
-
-                            <Flex width="100%" justify="space-between" align="center">
-                              <Input
-                                placeholder="Observação"
-                                size="sm"
-                                value={observacaoItem[produto.id] || ""}
-                                onChange={(e) =>
-                                  setObservacaoItem({
-                                    ...observacaoItem,
-                                    [produto.id]: e.target.value,
-                                  })
-                                }
-                                bg="white"
-                                color="black"
-                                _placeholder={{ color: "gray.500" }}
-                              />
-                              <IconButton
-                                aria-label="Adicionar item"
-                                icon={<FiPlus />}
-                                size="sm"
-                                ml={2}
-                                bg="#C25B02"
-                                color="white"
-                                onClick={() => adicionarItem(produto)}
-                                _hover={{ bg: "#B24A01" }}
-                              />
-                            </Flex>
-                          </Flex>
-                        </GridItem>
-                      ))}
                   </Grid>
                 </TabPanel>
-              ))}
-            </TabPanels>
-          </Tabs>
+                
+                {categorias.map((categoria) => (
+                  <TabPanel key={categoria} px={0}>
+                    <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
+                      {produtos.filter((p) => p.categoria === categoria && p.ativo).map((produto, idx) => (
+                        <MotionGridItem
+                          key={produto.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }}
+                          bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100"
+                        >
+                          <Flex direction="column" h="100%">
+                            {produto.imagem && <Image src={produto.imagem} alt={produto.nome} h="120px" w="100%" objectFit="cover" borderRadius="lg" mb={4} />}
+                            <Text fontWeight="bold" color="brand.light" fontSize="lg" mb={1}>{produto.nome}</Text>
+                            <Text color="brand.secondary" fontWeight="600" mb={4}>R$ {produto.preco.toFixed(2)}</Text>
+                            <Box mt="auto">
+                              <Input
+                                placeholder="Observação rápida" size="sm" value={observacaoGlobal[produto.id] || ""} onChange={(e) => setObservacaoGlobal({ ...observacaoGlobal, [produto.id]: e.target.value })}
+                                bg="whiteAlpha.100" border="none" color="brand.light" mb={3}
+                              />
+                              <Button
+                                w="100%" size="sm" leftIcon={<FiPlus />} variant="outline" borderColor="brand.primary" color="brand.primary"
+                                _hover={{ bg: "brand.primary", color: "white" }} onClick={() => abrirModalExtras(produto)}
+                              >
+                                Adicionar
+                              </Button>
+                            </Box>
+                          </Flex>
+                        </MotionGridItem>
+                      ))}
+                    </Grid>
+                  </TabPanel>
+                ))}
+              </TabPanels>
+            </Tabs>
+          </Box>
         </Box>
 
-        {/* Resumo do pedido */}
-        <Box
-          flex="1"
-          bg="black"
-          p={4}
-          borderRadius="md"
-          position="sticky"
-          top="20px"
-          alignSelf="flex-start"
-          borderWidth={1}
-          borderColor="#E6B325"
+        {/* Direita: Carrinho / Resumo */}
+        <Box 
+          flex="1" w="100%" minW={{ lg: "350px" }} variant="glass" p={6} borderRadius="2xl" position="sticky" top="100px"
         >
-          <Flex justify="space-between" align="center" mb={4}>
-            <Heading size="md" color="#E6B325">
-              Itens da Comanda
-            </Heading>
-            <Badge colorScheme="green" fontSize="sm" px={2} py={1} borderRadius="full">
-              Aberta
-            </Badge>
+          <Flex justify="space-between" align="center" mb={6}>
+            <Heading size="md" color="brand.light">Resumo do Pedido</Heading>
+            <Badge colorScheme="orange" px={3} py={1} borderRadius="full">{itensPedido.reduce((acc, i) => acc + i.quantidade, 0)} un.</Badge>
           </Flex>
 
           {itensPedido.length === 0 ? (
-            <Flex
-              direction="column"
-              align="center"
-              justify="center"
-              py={10}
-              color="whiteAlpha.600"
-              bg="whiteAlpha.50"
-              borderRadius="md"
-            >
-              <FiShoppingCart size={40} />
-              <Text mt={2}>Nenhum item adicionado</Text>
+            <Flex direction="column" align="center" justify="center" py={12} color="gray.500">
+              <FiShoppingCart size={48} style={{ opacity: 0.5, marginBottom: '16px' }} />
+              <Text>Nenhum item na comanda</Text>
             </Flex>
           ) : (
-            <VStack spacing={3} align="stretch" mb={4} maxH="400px" overflowY="auto" pr={2}>
-              {itensPedido.map((item) => (
-                <Box key={item.produto.id} bg="whiteAlpha.100" p={3} borderRadius="md">
-                  <Flex justify="space-between" mb={2}>
-                    <Flex align="center" gap={2}>
-                      <Text fontWeight="medium" color="white">
-                        {item.produto.nome}
-                      </Text>
-                      <Badge colorScheme="yellow" fontSize="xs">
-                        {item.produto.categoria}
-                      </Badge>
-                    </Flex>
-                    <IconButton
-                      aria-label="Remover item"
-                      icon={<FiX />}
-                      size="xs"
-                      colorScheme="red"
-                      variant="ghost"
-                      onClick={() => removerItem(item.produto.id)}
-                    />
+            <VStack spacing={4} align="stretch" maxH="450px" overflowY="auto" pr={2} css={{"&::-webkit-scrollbar":{width:"4px"},"&::-webkit-scrollbar-thumb":{background:"rgba(255,107,0,0.5)"}}}>
+              {itensPedido.map((item, index) => (
+                <MotionBox 
+                  key={`${item.produto.id}-${index}`} 
+                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                  bg="whiteAlpha.50" p={3} borderRadius="lg" border="1px dashed" borderColor="whiteAlpha.200"
+                >
+                  <Flex justify="space-between" align="start" mb={2}>
+                    <Box flex="1">
+                      <Text fontWeight="600" color="brand.light">{item.produto.nome}</Text>
+                      {item.adicionais && item.adicionais.map((adic, i) => (
+                         <Flex key={`adic-${i}`} align="center" mt={1}>
+                            <FiPlus color="#48BB78" size={10} style={{ marginRight: '4px' }}/>
+                            <Text fontSize="xs" color="gray.300">{adic.nome} (+R$ {adic.preco.toFixed(2)})</Text>
+                         </Flex>
+                      ))}
+                      {item.removidos && item.removidos.map((rem, i) => (
+                         <Flex key={`rem-${i}`} align="center" mt={1}>
+                            <FiMinus color="#F56565" size={10} style={{ marginRight: '4px' }}/>
+                            <Text fontSize="xs" color="gray.300" textDecoration="line-through">{rem}</Text>
+                         </Flex>
+                      ))}
+                      {item.observacao && (
+                        <Flex align="center" mt={1}>
+                          <FiTag color="#ECC94B" size={10} style={{ marginRight: '4px' }}/>
+                          <Text fontSize="xs" color="yellow.400">{item.observacao}</Text>
+                        </Flex>
+                      )}
+                    </Box>
+                    <IconButton aria-label="Remover" icon={<FiX />} size="xs" colorScheme="red" variant="ghost" onClick={() => removerItem(index)} />
                   </Flex>
-
-                  <Flex justify="space-between" align="center">
-                    <Text fontSize="sm" color="whiteAlpha.800">
-                      R$ {item.produto.preco.toFixed(2)} x {item.quantidade} = R${" "}
-                      {(item.produto.preco * item.quantidade).toFixed(2)}
+                  
+                  <Flex justify="space-between" align="center" mt={3} pt={2} borderTop="1px solid" borderColor="whiteAlpha.100">
+                    <Text color="brand.secondary" fontWeight="bold">
+                      R$ {(calcularPrecoUnitarioItem(item) * item.quantidade).toFixed(2)}
                     </Text>
-                    <Flex align="center">
-                      <IconButton
-                        aria-label="Diminuir quantidade"
-                        icon={<FiMinus />}
-                        size="xs"
-                        colorScheme="yellow"
-                        variant="ghost"
-                        onClick={() => atualizarQuantidade(item.produto.id, Math.max(0, item.quantidade - 1))}
-                      />
-                      <Text mx={2} color="white">
-                        {item.quantidade}
-                      </Text>
-                      <IconButton
-                        aria-label="Aumentar quantidade"
-                        icon={<FiPlus />}
-                        size="xs"
-                        colorScheme="yellow"
-                        variant="ghost"
-                        onClick={() => atualizarQuantidade(item.produto.id, item.quantidade + 1)}
-                      />
+                    <Flex bg="whiteAlpha.100" borderRadius="md" p={1} align="center">
+                      <IconButton aria-label="Menos" icon={<FiMinus />} size="xs" variant="ghost" color="brand.light" onClick={() => atualizarQuantidade(index, Math.max(0, item.quantidade - 1))} />
+                      <Text mx={3} color="brand.light" fontWeight="bold">{item.quantidade}</Text>
+                      <IconButton aria-label="Mais" icon={<FiPlus />} size="xs" variant="ghost" color="brand.light" onClick={() => atualizarQuantidade(index, item.quantidade + 1)} />
                     </Flex>
                   </Flex>
-
-                  {item.observacao && (
-                    <Text fontSize="xs" color="whiteAlpha.700" mt={1}>
-                      Obs: {item.observacao}
-                    </Text>
-                  )}
-                </Box>
+                </MotionBox>
               ))}
             </VStack>
           )}
 
-          <Divider borderColor="whiteAlpha.300" my={4} />
+          <Divider borderColor="whiteAlpha.200" my={6} />
 
-          <Flex justify="space-between" fontWeight="bold" mb={6}>
-            <Text color="white">Total:</Text>
-            <Text color="#E6B325">R$ {calcularTotal().toFixed(2)}</Text>
+          <Flex justify="space-between" align="center" mb={6}>
+            <Text color="gray.400" fontSize="lg">Total Estimado</Text>
+            <Text color="brand.secondary" fontSize="3xl" fontWeight="bold">
+              R$ {calcularTotal().toFixed(2)}
+            </Text>
           </Flex>
 
           <Button
-            w="100%"
-            bg="#C25B02"
-            color="white"
-            onClick={salvarComanda}
-            isDisabled={itensPedido.length === 0 || !cliente || !mesa}
-            _hover={{ bg: "#B24A01" }}
-            borderRadius="full"
-            leftIcon={<FiSave />}
+            w="100%" size="lg" variant="primary" leftIcon={<FiSave />} onClick={salvarComanda}
+            isDisabled={itensPedido.length === 0} h="60px"
           >
-            Salvar Comanda
+            Finalizar Nova Comanda (F12)
           </Button>
         </Box>
       </Flex>
 
-      {/* Modal para adicionar novo cliente */}
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <ModalOverlay />
-        <ModalContent bg="black" borderColor="#E6B325" borderWidth={1}>
-          <ModalHeader color="#E6B325">Adicionar Novo Cliente</ModalHeader>
-          <ModalBody>
+      {/* Modal Adicionais (Upsell) */}
+      <Modal isOpen={isExtraOpen} onClose={onExtraClose} isCentered size="md" motionPreset="slideInBottom">
+        <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
+        <ModalContent bg="brand.surface" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl">
+          <ModalHeader color="brand.light" pb={0}>Personalizar Item</ModalHeader>
+          <ModalCloseButton color="gray.400" />
+          <ModalBody py={4}>
+             <Heading size="sm" color="brand.secondary" mb={4}>{produtoSelecionadoParaExtras?.nome}</Heading>
+             
+             <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Adicionais (Extras):</Text>
+             <VStack align="stretch" spacing={2} mb={6}>
+                {OPCOES_ADICIONAIS.map((adc) => {
+                  const isChecked = adicionaisSelecionados.some(a => a.nome === adc.nome)
+                  return (
+                    <Flex key={adc.nome} p={3} bg={isChecked ? "brand.primaryDark" : "whiteAlpha.50"} borderRadius="md" justify="space-between" align="center" cursor="pointer" onClick={() => toggleAdicional(adc)} border="1px solid" borderColor={isChecked ? "brand.primary" : "whiteAlpha.100"}>
+                       <HStack>
+                          <Checkbox colorScheme="orange" isChecked={isChecked} pointerEvents="none" />
+                          <Text color={isChecked ? "white" : "gray.300"} fontWeight={isChecked ? "bold" : "normal"}>{adc.nome}</Text>
+                       </HStack>
+                       <Text color="brand.secondary" fontWeight="bold">+ R$ {adc.preco.toFixed(2)}</Text>
+                    </Flex>
+                  )
+                })}
+             </VStack>
+
+             <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Remover ingredientes:</Text>
+             <VStack align="stretch" spacing={2} mb={6}>
+                {OPCOES_REMOVER.map((rem) => {
+                  const isChecked = removidosSelecionados.includes(rem)
+                  return (
+                    <Flex key={rem} p={3} bg={isChecked ? "red.900" : "whiteAlpha.50"} borderRadius="md" justify="space-between" align="center" cursor="pointer" onClick={() => toggleRemover(rem)} border="1px solid" borderColor={isChecked ? "red.500" : "whiteAlpha.100"}>
+                       <HStack>
+                          <Checkbox colorScheme="red" isChecked={isChecked} pointerEvents="none" />
+                          <Text color={isChecked ? "white" : "gray.300"} as={isChecked ? "s" : undefined}>{rem}</Text>
+                       </HStack>
+                    </Flex>
+                  )
+                })}
+             </VStack>
+
+             <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Observação Adicional:</Text>
+             <Input 
+                value={obsModal} onChange={(e) => setObsModal(e.target.value)} 
+                placeholder="Excapções ou notas para cozinha" bg="whiteAlpha.100" color="white" border="none"
+             />
+
+          </ModalBody>
+          <ModalFooter borderTop="1px solid" borderColor="whiteAlpha.100" bg="blackAlpha.200" borderBottomRadius="2xl">
+            <Button variant="ghost" color="gray.400" mr={3} onClick={onExtraClose}>Cancelar</Button>
+            <Button variant="primary" onClick={confirmarExtrasItem}>Confirmar e Adicionar</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal Novo Cliente */}
+      <Modal isOpen={isClientOpen} onClose={onClientClose} isCentered motionPreset="slideInBottom">
+        <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
+        <ModalContent bg="brand.surface" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl">
+          <ModalHeader color="brand.light">Cadastrar Cliente</ModalHeader>
+          <ModalBody py={4}>
             <VStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel color="white">Nome</FormLabel>
-                <Input
-                  placeholder="Nome completo"
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  bg="whiteAlpha.100"
-                  color="white"
-                />
+                <FormLabel color="gray.400">Nome Completo</FormLabel>
+                <Input value={cliente} onChange={(e) => setCliente(e.target.value)} bg="whiteAlpha.50" color="brand.light" border="1px solid" borderColor="brand.surfaceborder" />
               </FormControl>
               <FormControl isRequired>
-                <FormLabel color="white">Telefone</FormLabel>
-                <Input
-                  placeholder="(XX) XXXXX-XXXX"
-                  value={telefoneCliente}
-                  onChange={(e) => setTelefoneCliente(e.target.value)}
-                  bg="whiteAlpha.100"
-                  color="white"
-                />
+                <FormLabel color="gray.400">Telefone / WhatsApp</FormLabel>
+                <Input value={telefoneCliente} onChange={(e) => setTelefoneCliente(e.target.value)} bg="whiteAlpha.50" color="brand.light" border="1px solid" borderColor="brand.surfaceborder" />
               </FormControl>
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="outline" colorScheme="yellow" mr={3} onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button bg="#C25B02" color="white" onClick={salvarNovoCliente} _hover={{ bg: "#B24A01" }}>
-              Salvar
-            </Button>
+            <Button variant="ghost" color="brand.light" mr={3} onClick={onClientClose}>Cancelar</Button>
+            <Button variant="primary" onClick={salvarNovoCliente}>Salvar</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

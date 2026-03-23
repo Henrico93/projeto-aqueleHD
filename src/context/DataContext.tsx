@@ -5,12 +5,21 @@ import { createContext, useContext, useState, useEffect } from "react"
 import api from "../services/api"
 import { useToast } from "@chakra-ui/react"
 
-// Tipos para as entidades principais
 export interface Cliente {
   id: string
   nome: string
   telefone?: string
   historicoPedidos?: number[]
+}
+
+export interface Usuario {
+  id: string
+  nome: string
+  email: string
+  senha?: string
+  role: "admin" | "funcionario"
+  permissoes: string[]
+  criadoEm: Date
 }
 
 // Atualize a interface Produto para incluir itensEstoque
@@ -31,6 +40,8 @@ export interface ItemPedido {
   produto: Produto
   quantidade: number
   observacao?: string
+  adicionais?: { nome: string; preco: number }[]
+  removidos?: string[]
 }
 
 export interface ItemEstoque {
@@ -54,6 +65,8 @@ export interface Pedido {
     quantidade: number
     preco: number
     observacao?: string
+    adicionais?: { nome: string; preco: number }[]
+    removidos?: string[]
   }>
   status: "aberto" | "fechado" | "pago"
   formaPagamento?: "pix" | "dinheiro" | "cartao_credito" | "cartao_debito"
@@ -89,6 +102,8 @@ interface DataContextType {
   pedidos: Pedido[]
   estoque: ItemEstoque[]
   vendas: Venda[]
+  usuarios: Usuario[]
+  currentUser: Usuario | null
   loading: boolean
   error: string | null
   addCliente: (cliente: Omit<Cliente, "id">) => Promise<Cliente>
@@ -117,6 +132,12 @@ interface DataContextType {
   getItensEstoqueProduto: (produtoId: number) => Array<{ itemId: number; quantidade: number }>
   getItensEstoqueDisponiveis: () => ItemEstoque[]
   getProdutoComItensEstoque: (produtoId: number) => Produto | undefined
+  // User Management e Auth
+  login: (email: string, senha?: string) => Promise<boolean>
+  logout: () => void
+  addUsuario: (usuario: Omit<Usuario, "id" | "criadoEm">) => Promise<Usuario>
+  updateUsuario: (usuario: Usuario) => Promise<void>
+  deleteUsuario: (id: string) => Promise<void>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -136,6 +157,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [estoque, setEstoque] = useState<ItemEstoque[]>([])
   const [vendas, setVendas] = useState<Venda[]>([])
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   // Estado para armazenar as relações produto-estoque localmente
@@ -201,6 +224,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }))
       setVendas(vendasFormatadas)
 
+      // Carregar usuários
+      const usuariosResponse = await api.get("/usuarios")
+      const usuariosFormatados = usuariosResponse.data.map((u: any) => ({
+        ...u,
+        criadoEm: new Date(u.criadoEm),
+      }))
+      setUsuarios(usuariosFormatados)
+
       setLoading(false)
     } catch (err: any) {
       console.error("Erro ao carregar dados:", err)
@@ -212,7 +243,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  // Função para carregar dados do localStorage (fallback)
   const loadFromLocalStorage = () => {
     const savedClientes = localStorage.getItem("clientes")
     const savedProdutos = localStorage.getItem("produtos")
@@ -220,6 +250,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedEstoque = localStorage.getItem("estoque")
     const savedVendas = localStorage.getItem("vendas")
     const savedRelacoes = localStorage.getItem("produtoEstoqueRelacoes")
+    const savedUsuarios = localStorage.getItem("usuarios")
+    const savedCurrentUser = localStorage.getItem("currentUser")
+
+    if (savedUsuarios) {
+      setUsuarios(JSON.parse(savedUsuarios).map((u: any) => ({...u, criadoEm: new Date(u.criadoEm)})))
+    }
+
+    if (savedCurrentUser) {
+      setCurrentUser(JSON.parse(savedCurrentUser))
+    }
 
     if (savedClientes) setClientes(JSON.parse(savedClientes))
 
@@ -917,13 +957,81 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const id = vendas.length > 0 ? Math.max(...vendas.map((v) => v.id)) + 1 : 1
       const novaVenda = { ...venda, id }
       setVendas([...vendas, novaVenda])
-
-      // Mesmo com erro na API, tenta atualizar o estoque
-      if (venda.itensVendidos && venda.itensVendidos.length > 0) {
-        await atualizarEstoqueAposVenda(venda.itensVendidos)
-      }
-
       return novaVenda
+    }
+  }
+
+  // --- Funções de Autenticação e Gestão de Usuários ---
+  const login = async (email: string, senha?: string) => {
+    try {
+      const response = await api.post("/usuarios/login", { email, senha });
+      const user = response.data;
+      setCurrentUser(user);
+      localStorage.setItem("currentUser", JSON.stringify(user));
+      return true;
+    } catch (err) {
+      console.error("Falha ao logar:", err);
+      return false;
+    }
+  }
+
+  const logout = () => {
+    setCurrentUser(null)
+    localStorage.removeItem("currentUser")
+  }
+
+  const addUsuario = async (usuario: Omit<Usuario, "id" | "criadoEm">) => {
+    try {
+      const response = await api.post("/usuarios", usuario);
+      const novoUsuario = { ...response.data, criadoEm: new Date(response.data.criadoEm) };
+      setUsuarios([...usuarios, novoUsuario]);
+      return novoUsuario;
+    } catch (err) {
+      console.error("Erro ao adicionar usuario fallback localStorage:", err);
+      const novoUsuario: Usuario = { ...usuario, id: `user_${Date.now()}`, criadoEm: new Date() }
+      const updatedUsers = [...usuarios, novoUsuario]
+      setUsuarios(updatedUsers)
+      localStorage.setItem("usuarios", JSON.stringify(updatedUsers))
+      return novoUsuario
+    }
+  }
+
+  const updateUsuario = async (usuario: Usuario) => {
+    try {
+      await api.put(`/usuarios/${usuario.id}`, usuario);
+      const updatedUsers = usuarios.map(u => u.id === usuario.id ? usuario : u)
+      setUsuarios(updatedUsers)
+      if (currentUser?.id === usuario.id) {
+        setCurrentUser(usuario)
+        localStorage.setItem("currentUser", JSON.stringify(usuario))
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar usuario fallback localStorage:", err);
+      const updatedUsers = usuarios.map(u => u.id === usuario.id ? usuario : u)
+      setUsuarios(updatedUsers)
+      localStorage.setItem("usuarios", JSON.stringify(updatedUsers))
+      if (currentUser?.id === usuario.id) {
+        setCurrentUser(usuario)
+        localStorage.setItem("currentUser", JSON.stringify(usuario))
+      }
+    }
+  }
+
+  const deleteUsuario = async (id: string) => {
+    try {
+      await api.delete(`/usuarios/${id}`);
+      setUsuarios(usuarios.filter(u => u.id !== id))
+      if (currentUser?.id === id) {
+        logout()
+      }
+    } catch (err) {
+      console.error("Erro ao deletar usuario fallback localStorage:", err);
+      const updatedUsers = usuarios.filter(u => u.id !== id)
+      setUsuarios(updatedUsers)
+      localStorage.setItem("usuarios", JSON.stringify(updatedUsers))
+      if (currentUser?.id === id) {
+        logout()
+      }
     }
   }
 
@@ -933,6 +1041,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pedidos,
     estoque,
     vendas,
+    usuarios,
+    currentUser,
     loading,
     error,
     addCliente,
@@ -959,6 +1069,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     getItensEstoqueProduto,
     getItensEstoqueDisponiveis,
     getProdutoComItensEstoque,
+    login,
+    logout,
+    addUsuario,
+    updateUsuario,
+    deleteUsuario,
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

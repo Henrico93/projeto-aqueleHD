@@ -1,18 +1,56 @@
-import { Box, Heading } from "@chakra-ui/react"
+import { Box, Heading, Flex, Avatar, IconButton } from "@chakra-ui/react"
+import { FiBell, FiSettings } from "react-icons/fi"
 
 const Header = () => {
   return (
-    <Box bg="#C25B02" p={4} w="100%" textAlign="center">
-      <Heading
-        as="h1"
-        fontSize="2xl"
-        fontFamily="'Bubblegum Sans', cursive"
-        letterSpacing="wider"
-        color="#E6B325"
-        textShadow="1px 1px 2px rgba(0,0,0,0.5)"
-      >
-        Aquele Hot dogs
-      </Heading>
+    <Box
+      as="header"
+      w="100%"
+      px={8}
+      py={4}
+      bg="brand.surface"
+      backdropFilter="blur(16px)"
+      WebkitBackdropFilter="blur(16px)"
+      borderBottom="1px solid"
+      borderColor="brand.surfaceborder"
+      position="sticky"
+      top={0}
+      zIndex={10}
+      boxShadow="0 4px 30px rgba(0, 0, 0, 0.1)"
+    >
+      <Flex justify="space-between" align="center">
+        <Heading
+          as="h1"
+          fontSize="3xl"
+          fontFamily="'Bubblegum Sans', cursive"
+          letterSpacing="wider"
+          bgGradient="linear(to-r, brand.primary, brand.secondary)"
+          bgClip="text"
+          textShadow="0 0 20px rgba(255, 107, 0, 0.2)"
+        >
+          Aquele Hot Dogs
+        </Heading>
+        
+        <Flex align="center" gap={4}>
+          <IconButton
+            aria-label="Notifications"
+            icon={<FiBell />}
+            variant="ghost"
+            color="brand.light"
+            _hover={{ bg: "whiteAlpha.200", color: "brand.primary" }}
+            isRound
+          />
+          <IconButton
+            aria-label="Settings"
+            icon={<FiSettings />}
+            variant="ghost"
+            color="brand.light"
+            _hover={{ bg: "whiteAlpha.200", color: "brand.primary" }}
+            isRound
+          />
+          <Avatar size="sm" name="Admin" bg="brand.primary" border="2px solid" borderColor="brand.secondary" />
+        </Flex>
+      </Flex>
     </Box>
   )
 }
