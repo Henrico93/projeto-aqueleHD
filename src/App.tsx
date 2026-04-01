@@ -1,5 +1,6 @@
-import { ChakraProvider } from "@chakra-ui/react"
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom"
+import { ChakraProvider, useToast } from "@chakra-ui/react"
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom"
+import { useEffect, useRef, useCallback } from "react"
 import { theme } from "./theme"
 import Layout from "./components/Layout"
 import HomePage from "./pages/HomePage"
@@ -16,9 +17,42 @@ import { DataProvider } from "./context/DataContext"
 import LoadingOverlay from "./components/LoadingOverlay"
 import { useData } from "./context/DataContext"
 
+const INATIVIDADE_MS = 30 * 60 * 1000 // 30 minutos
+
 // Componente wrapper para acessar o contexto
 const ProtectedRoute = () => {
-  const { currentUser } = useData()
+  const { currentUser, logout } = useData()
+  const navigate = useNavigate()
+  const toast = useToast()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      logout()
+      toast({
+        title: "Sessão expirada",
+        description: "Você ficou inativo por 30 minutos e foi desconectado.",
+        status: "warning",
+        duration: 6000,
+        isClosable: true,
+        position: "top",
+      })
+      navigate("/login", { replace: true })
+    }, INATIVIDADE_MS)
+  }, [logout, navigate, toast])
+
+  useEffect(() => {
+    if (!currentUser) return
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"]
+    events.forEach((ev) => window.addEventListener(ev, resetTimer, { passive: true }))
+    resetTimer() // Inicia o timer ao entrar
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      events.forEach((ev) => window.removeEventListener(ev, resetTimer))
+    }
+  }, [currentUser, resetTimer])
+
   if (!currentUser) {
     return <Navigate to="/login" replace />
   }

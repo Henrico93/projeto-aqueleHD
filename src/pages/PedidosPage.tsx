@@ -26,7 +26,7 @@ import {
 } from "@chakra-ui/react"
 import { motion } from "framer-motion"
 import { Link as RouterLink } from "react-router-dom"
-import { FiEdit, FiCreditCard, FiPlus, FiTrash2, FiSearch, FiRefreshCw } from "react-icons/fi"
+import { FiEdit, FiCreditCard, FiPlus, FiMinus, FiTag, FiTrash2, FiSearch, FiRefreshCw } from "react-icons/fi"
 import { useData, type Pedido } from "../context/DataContext"
 
 const MotionBox = motion(Box)
@@ -257,39 +257,82 @@ const PedidosPage = () => {
                   alignItems="center"
                   boxShadow="md"
                 >
-                  <Flex align="center" width="100%">
-                    <Box width="120px" pl={2}>
-                      <Text fontWeight="bold" color="brand.secondary" fontSize="lg">
-                        #{pedido.id}
-                      </Text>
-                      <Text fontSize="xs" color="gray.400">
-                        {formatarHora(pedido.timestamp)}
-                      </Text>
-                    </Box>
-
-                    <Box flex="1">
-                      <Flex justify="space-between" align="center">
-                        <Text color="brand.light" fontWeight="600" fontSize="md">
-                          {pedido.cliente} <Text as="span" color="whiteAlpha.400" mx={2}>•</Text> {pedido.mesa}
+                  <Flex align="flex-start" width="100%" direction="column" gap={2}>
+                    {/* Linha superior: ID, cliente, mesa, status, total */}
+                    <Flex align="center" width="100%">
+                      <Box width="110px" pl={2} flexShrink={0}>
+                        <Text fontWeight="bold" color="brand.secondary" fontSize="lg">
+                          #{pedido.id}
                         </Text>
-                        <Flex align="center" gap={4}>
-                          <Badge
-                            colorScheme={pedido.status === "aberto" ? "green" : "orange"}
-                            fontSize="xs"
-                            px={3}
-                            py={1}
-                            borderRadius="full"
-                            textTransform="uppercase"
-                            letterSpacing="wider"
-                          >
-                            {pedido.status === "aberto" ? "Aberta" : "Fechada"}
-                          </Badge>
-                          <Text fontWeight="bold" color="brand.light" fontSize="lg">
-                            R$ {calcularTotal(pedido).toFixed(2)}
+                        <Text fontSize="xs" color="gray.400">
+                          {formatarHora(pedido.timestamp)}
+                        </Text>
+                      </Box>
+                      <Box flex="1">
+                        <Flex justify="space-between" align="center">
+                          <Text color="brand.light" fontWeight="600" fontSize="md">
+                            {pedido.cliente} <Text as="span" color="whiteAlpha.400" mx={2}>•</Text> {pedido.mesa}
                           </Text>
+                          <Flex align="center" gap={4}>
+                            <Badge
+                              colorScheme={pedido.status === "aberto" ? "green" : "orange"}
+                              fontSize="xs" px={3} py={1} borderRadius="full"
+                              textTransform="uppercase" letterSpacing="wider"
+                            >
+                              {pedido.status === "aberto" ? "Aberta" : "Fechada"}
+                            </Badge>
+                            <Text fontWeight="bold" color="brand.light" fontSize="lg">
+                              R$ {calcularTotal(pedido).toFixed(2)}
+                            </Text>
+                          </Flex>
                         </Flex>
-                      </Flex>
-                    </Box>
+                      </Box>
+                    </Flex>
+
+                    {/* Linha de itens com adicionais/removidos */}
+                    <Flex pl="110px" flexWrap="wrap" gap={2} width="100%">
+                      {pedido.itens.map((item, idx) => (
+                        <Box
+                          key={idx}
+                          bg="whiteAlpha.100"
+                          borderRadius="md"
+                          px={2}
+                          py={1}
+                          fontSize="xs"
+                          border="1px solid"
+                          borderColor="whiteAlpha.200"
+                        >
+                          <Text color="brand.light" fontWeight="600">
+                            {item.quantidade}x {item.nome}
+                            {item.preco !== (item.precoBase ?? item.preco) && (
+                              <Text as="span" color="brand.secondary" ml={1}>
+                                R$ {item.preco.toFixed(2)}
+                              </Text>
+                            )}
+                          </Text>
+                          {item.adicionais && item.adicionais.length > 0 && (
+                            <Flex flexWrap="wrap" gap={1} mt={0.5}>
+                              {item.adicionais.map((adic, i) => (
+                                <Flex key={i} align="center" gap={0.5}>
+                                  <FiPlus color="#48BB78" size={9} />
+                                  <Text color="green.300">{adic.nome}</Text>
+                                </Flex>
+                              ))}
+                            </Flex>
+                          )}
+                          {item.removidos && item.removidos.length > 0 && (
+                            <Flex flexWrap="wrap" gap={1} mt={0.5}>
+                              {item.removidos.map((rem, i) => (
+                                <Flex key={i} align="center" gap={0.5}>
+                                  <FiMinus color="#F56565" size={9} />
+                                  <Text color="red.300" textDecoration="line-through">{rem}</Text>
+                                </Flex>
+                              ))}
+                            </Flex>
+                          )}
+                        </Box>
+                      ))}
+                    </Flex>
                   </Flex>
                 </MotionBox>
               ))
@@ -342,19 +385,81 @@ const PedidosPage = () => {
                 <Text color="brand.primary" fontWeight="bold" mb={3} textTransform="uppercase" fontSize="sm" letterSpacing="wider">
                   Itens do Pedido
                 </Text>
-                <VStack align="stretch" spacing={3}>
+                <VStack align="stretch" spacing={0}>
                   {selectedPedido?.itens.map((item, index) => (
-                    <Flex key={index} justify="space-between" align="center">
-                      <Flex align="center" gap={3}>
-                        <Badge bg="whiteAlpha.200" color="brand.light" borderRadius="md" px={2} py={1}>
-                          {item.quantidade}x
-                        </Badge>
-                        <Text color="brand.light">{item.nome}</Text>
+                    <Box
+                      key={index}
+                      borderBottom="1px solid"
+                      borderColor="whiteAlpha.100"
+                      py={3}
+                      _last={{ borderBottom: "none" }}
+                    >
+                      {/* Linha principal do produto */}
+                      <Flex justify="space-between" align="center">
+                        <Flex align="center" gap={2}>
+                          <Badge
+                            bg="brand.primary"
+                            color="white"
+                            fontSize="xs"
+                            borderRadius="md"
+                            px={2}
+                            minW="28px"
+                            textAlign="center"
+                          >
+                            {item.quantidade}x
+                          </Badge>
+                          <Text color="brand.light" fontWeight="700" fontSize="md">
+                            {item.nome}
+                          </Text>
+                        </Flex>
+                        <Text color="brand.secondary" fontWeight="bold" fontSize="md">
+                          R$ {(item.preco * item.quantidade).toFixed(2)}
+                        </Text>
                       </Flex>
-                      <Text color="brand.secondary" fontWeight="medium">
-                        R$ {(item.preco * item.quantidade).toFixed(2)}
-                      </Text>
-                    </Flex>
+
+                      {/* Adicionais — subtítulo indentado */}
+                      {item.adicionais && item.adicionais.length > 0 && (
+                        <Box pl="44px" mt={1}>
+                          {item.adicionais.map((adic, i) => (
+                            <Flex key={i} align="center" gap={2} mt={0.5}>
+                              <FiPlus size={10} color="#68D391" />
+                              <Text fontSize="sm" color="green.300">
+                                {adic.nome}
+                                <Text as="span" color="green.500" ml={1} fontSize="xs">
+                                  (+R$ {adic.preco.toFixed(2)})
+                                </Text>
+                              </Text>
+                            </Flex>
+                          ))}
+                        </Box>
+                      )}
+
+                      {/* Removidos — subtítulo indentado */}
+                      {item.removidos && item.removidos.length > 0 && (
+                        <Box pl="44px" mt={1}>
+                          {item.removidos.map((rem, i) => (
+                            <Flex key={i} align="center" gap={2} mt={0.5}>
+                              <FiMinus size={10} color="#FC8181" />
+                              <Text fontSize="sm" color="red.300" textDecoration="line-through">
+                                {rem}
+                              </Text>
+                            </Flex>
+                          ))}
+                        </Box>
+                      )}
+
+                      {/* Observação */}
+                      {item.observacao && (
+                        <Box pl="44px" mt={1}>
+                          <Flex align="center" gap={2}>
+                            <FiTag size={10} color="#ECC94B" />
+                            <Text fontSize="sm" color="yellow.400" fontStyle="italic">
+                              "{item.observacao}"
+                            </Text>
+                          </Flex>
+                        </Box>
+                      )}
+                    </Box>
                   ))}
                 </VStack>
               </Box>

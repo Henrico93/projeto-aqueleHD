@@ -130,7 +130,7 @@ const EditarPedidoPage = () => {
   }, [pedidoId, getPedido, produtos])
 
   const abrirModalExtras = (produto: Produto) => {
-    if (produto.categoria.toLowerCase().includes("hot dog")) {
+    if (produto.personalizacaoAtiva) {
       setProdutoSelecionadoParaExtras(produto)
       setAdicionaisSelecionados([])
       setRemovidosSelecionados([])
@@ -216,7 +216,8 @@ const EditarPedidoPage = () => {
       itens: itensPedido.map((item) => ({
         nome: item.produto.nome,
         quantidade: item.quantidade,
-        preco: item.produto.preco,
+        preco: calcularPrecoUnitarioItem(item), // Agora o preço é o base + adicionais
+        precoBase: item.produto.preco,
         observacao: item.observacao,
         adicionais: item.adicionais,
         removidos: item.removidos
@@ -493,36 +494,54 @@ const EditarPedidoPage = () => {
           <ModalBody py={4}>
              <Heading size="sm" color="brand.secondary" mb={4}>{produtoSelecionadoParaExtras?.nome}</Heading>
              
-             <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Adicionais (Extras):</Text>
-             <VStack align="stretch" spacing={2} mb={6}>
-                {OPCOES_ADICIONAIS.map((adc) => {
-                  const isChecked = adicionaisSelecionados.some(a => a.nome === adc.nome)
-                  return (
-                    <Flex key={adc.nome} p={3} bg={isChecked ? "brand.primaryDark" : "whiteAlpha.50"} borderRadius="md" justify="space-between" align="center" cursor="pointer" onClick={() => toggleAdicional(adc)} border="1px solid" borderColor={isChecked ? "brand.primary" : "whiteAlpha.100"}>
-                       <HStack>
-                          <Checkbox colorScheme="orange" isChecked={isChecked} pointerEvents="none" />
-                          <Text color={isChecked ? "white" : "gray.300"} fontWeight={isChecked ? "bold" : "normal"}>{adc.nome}</Text>
-                       </HStack>
-                       <Text color="brand.secondary" fontWeight="bold">+ R$ {adc.preco.toFixed(2)}</Text>
-                    </Flex>
-                  )
-                })}
-             </VStack>
+             {/* Seção de Adicionais — só exibe se o produto tiver adicionais cadastrados */}
+             {(produtoSelecionadoParaExtras?.opcoesAdicionais || []).length > 0 && (
+               <>
+                 <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Adicionais (Extras):</Text>
+                 <VStack align="stretch" spacing={2} mb={6}>
+                   {(produtoSelecionadoParaExtras?.opcoesAdicionais || []).map((adc) => {
+                     const isChecked = adicionaisSelecionados.some(a => a.nome === adc.nome)
+                     return (
+                       <Flex key={adc.nome} p={3} bg={isChecked ? "brand.primaryDark" : "whiteAlpha.50"} borderRadius="md" justify="space-between" align="center" cursor="pointer" onClick={() => toggleAdicional(adc)} border="1px solid" borderColor={isChecked ? "brand.primary" : "whiteAlpha.100"}>
+                          <HStack>
+                             <Checkbox colorScheme="orange" isChecked={isChecked} pointerEvents="none" />
+                             <Text color={isChecked ? "white" : "gray.300"} fontWeight={isChecked ? "bold" : "normal"}>{adc.nome}</Text>
+                          </HStack>
+                          <Text color="brand.secondary" fontWeight="bold">+ R$ {adc.preco.toFixed(2)}</Text>
+                       </Flex>
+                     )
+                   })}
+                 </VStack>
+               </>
+             )}
 
-             <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Remover ingredientes:</Text>
-             <VStack align="stretch" spacing={2} mb={6}>
-                {OPCOES_REMOVER.map((rem) => {
-                  const isChecked = removidosSelecionados.includes(rem)
-                  return (
-                    <Flex key={rem} p={3} bg={isChecked ? "red.900" : "whiteAlpha.50"} borderRadius="md" justify="space-between" align="center" cursor="pointer" onClick={() => toggleRemover(rem)} border="1px solid" borderColor={isChecked ? "red.500" : "whiteAlpha.100"}>
-                       <HStack>
-                          <Checkbox colorScheme="red" isChecked={isChecked} pointerEvents="none" />
-                          <Text color={isChecked ? "white" : "gray.300"} as={isChecked ? "s" : undefined}>{rem}</Text>
-                       </HStack>
-                    </Flex>
-                  )
-                })}
-             </VStack>
+             {/* Seção de Remover — só exibe se o produto tiver ingredientes cadastrados */}
+             {(produtoSelecionadoParaExtras?.opcoesRemover || []).length > 0 && (
+               <>
+                 <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Remover ingredientes:</Text>
+                 <VStack align="stretch" spacing={2} mb={6}>
+                   {(produtoSelecionadoParaExtras?.opcoesRemover || []).map((rem) => {
+                     const isChecked = removidosSelecionados.includes(rem)
+                     return (
+                       <Flex key={rem} p={3} bg={isChecked ? "red.900" : "whiteAlpha.50"} borderRadius="md" justify="space-between" align="center" cursor="pointer" onClick={() => toggleRemover(rem)} border="1px solid" borderColor={isChecked ? "red.500" : "whiteAlpha.100"}>
+                          <HStack>
+                             <Checkbox colorScheme="red" isChecked={isChecked} pointerEvents="none" />
+                             <Text color={isChecked ? "white" : "gray.300"} as={isChecked ? "s" : undefined}>{rem}</Text>
+                          </HStack>
+                       </Flex>
+                     )
+                   })}
+                 </VStack>
+               </>
+             )}
+
+             {/* Se nenhuma seção acima for exibida, mostra aviso */}
+             {(produtoSelecionadoParaExtras?.opcoesAdicionais || []).length === 0 &&
+              (produtoSelecionadoParaExtras?.opcoesRemover || []).length === 0 && (
+               <Text color="gray.500" fontSize="sm" textAlign="center" mb={4}>
+                 Apenas uma observação adicional é possível para este item.
+               </Text>
+             )}
 
              <Text fontWeight="600" color="gray.400" fontSize="sm" mb={2}>Observação Adicional:</Text>
              <Input 

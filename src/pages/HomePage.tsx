@@ -148,6 +148,7 @@ const HomePage = () => {
 
   const isAdmin = currentUser?.role === "admin"
   const activeStatCards = isAdmin ? statCards : funcStatCards
+  const temPermissaoPedidos = isAdmin || (currentUser?.permissoes || []).includes("pedidos")
 
   return (
     <Box maxW="1400px" mx="auto" w="100%">
@@ -211,74 +212,76 @@ const HomePage = () => {
           ))}
         </Grid>
 
-        <MotionBox variants={itemVariants} width="100%">
-          <Flex
-            direction={{ base: "column", lg: "row" }}
-            align="center"
-            justify="space-between"
-            p={8}
-            position="relative"
-            overflow="hidden"
-            borderRadius="2xl"
-          >
-            <Box
-              bg="whiteAlpha.50"
-              border="1px solid"
-              borderColor="brand.surfaceborder"
+        {temPermissaoPedidos && (
+          <MotionBox variants={itemVariants} width="100%">
+            <Flex
+              direction={{ base: "column", lg: "row" }}
+              align="center"
+              justify="space-between"
+              p={8}
+              position="relative"
+              overflow="hidden"
               borderRadius="2xl"
-              position="absolute"
-              top={0}
-              left={0}
-              right={0}
-              bottom={0}
-              zIndex={0}
-            />
-            <Box
-              position="absolute"
-              bg="brand.primary"
-              w="300px"
-              h="300px"
-              rounded="full"
-              filter="blur(100px)"
-              opacity={0.15}
-              top="-100px"
-              left="-100px"
-              zIndex={0}
-            />
-            
-            <Box flex="1" mb={{ base: 8, lg: 0 }} position="relative" zIndex={1}>
-              <Heading mb={4} size="lg" color="brand.light">
-                Ações Rápidas
-              </Heading>
-              <Text fontSize="md" color="gray.400" maxW="500px">
-                Acesse as principais funcionalidades do sistema com um clique para agilizar o atendimento.
-              </Text>
-            </Box>
-            
-            <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }} gap={4} flex="1" w="100%" position="relative" zIndex={1}>
-              <Button as={RouterLink} to="/novo-pedido" variant="primary" size="lg" h="80px" display="flex" flexDirection="column" gap={2}>
-                <Icon as={FiDollarSign} boxSize={5} />
-                Nova Comanda
-              </Button>
-              <Button
-                as={RouterLink}
-                to="/pedidos"
-                variant="outline"
-                borderColor="brand.primary"
-                color="brand.primary"
-                _hover={{ bg: "brand.primary", color: "white" }}
-                size="lg"
-                h="80px"
-                display="flex"
-                flexDirection="column"
-                gap={2}
-              >
-                <Icon as={FiCheckCircle} boxSize={5} />
-                Ver Pedidos
-              </Button>
-            </Grid>
-          </Flex>
-        </MotionBox>
+            >
+              <Box
+                bg="whiteAlpha.50"
+                border="1px solid"
+                borderColor="brand.surfaceborder"
+                borderRadius="2xl"
+                position="absolute"
+                top={0}
+                left={0}
+                right={0}
+                bottom={0}
+                zIndex={0}
+              />
+              <Box
+                position="absolute"
+                bg="brand.primary"
+                w="300px"
+                h="300px"
+                rounded="full"
+                filter="blur(100px)"
+                opacity={0.15}
+                top="-100px"
+                left="-100px"
+                zIndex={0}
+              />
+              
+              <Box flex="1" mb={{ base: 8, lg: 0 }} position="relative" zIndex={1}>
+                <Heading mb={4} size="lg" color="brand.light">
+                  Ações Rápidas
+                </Heading>
+                <Text fontSize="md" color="gray.400" maxW="500px">
+                  Acesse as principais funcionalidades do sistema com um clique para agilizar o atendimento.
+                </Text>
+              </Box>
+              
+              <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }} gap={4} flex="1" w="100%" position="relative" zIndex={1}>
+                <Button as={RouterLink} to="/novo-pedido" variant="primary" size="lg" h="80px" display="flex" flexDirection="column" gap={2}>
+                  <Icon as={FiDollarSign} boxSize={5} />
+                  Nova Comanda
+                </Button>
+                <Button
+                  as={RouterLink}
+                  to="/pedidos"
+                  variant="outline"
+                  borderColor="brand.primary"
+                  color="brand.primary"
+                  _hover={{ bg: "brand.primary", color: "white" }}
+                  size="lg"
+                  h="80px"
+                  display="flex"
+                  flexDirection="column"
+                  gap={2}
+                >
+                  <Icon as={FiCheckCircle} boxSize={5} />
+                  Ver Pedidos
+                </Button>
+              </Grid>
+            </Flex>
+          </MotionBox>
+        )}
       </motion.div>
     </Box>
   )

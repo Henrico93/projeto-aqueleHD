@@ -32,23 +32,18 @@ import {
   NumberIncrementStepper,
   NumberDecrementStepper,
   useDisclosure,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   InputGroup,
   InputLeftElement,
   InputRightElement,
   VStack,
   Divider,
+  HStack,
+  Collapse,
 } from "@chakra-ui/react"
 import { motion } from "framer-motion"
-import { FiEdit2, FiPlusCircle, FiTrash2, FiSearch, FiRefreshCw, FiPackage, FiLink } from "react-icons/fi"
+import { FiEdit2, FiPlusCircle, FiTrash2, FiSearch, FiRefreshCw, FiPackage } from "react-icons/fi"
 import { useData, type Produto } from "../context/DataContext"
 
-const MotionBox = motion(Box)
 const MotionGridItem = motion(GridItem)
 
 const ProdutosPage = () => {
@@ -62,7 +57,6 @@ const ProdutosPage = () => {
     associarItemEstoqueProduto,
     desassociarItemEstoqueProduto,
     atualizarQuantidadeItemEstoqueProduto,
-    getItensEstoqueDisponiveis,
     getProdutoComItensEstoque,
   } = useData()
   const toast = useToast()
@@ -75,6 +69,9 @@ const ProdutosPage = () => {
     imagem: "/placeholder.svg?height=100&width=100",
     categoria: "",
     ativo: true,
+    personalizacaoAtiva: false,
+    opcoesAdicionais: [],
+    opcoesRemover: [],
   })
 
   const [editId, setEditId] = useState<number | null>(null)
@@ -85,7 +82,11 @@ const ProdutosPage = () => {
   const [quantidadeItem, setQuantidadeItem] = useState<number>(1)
   const [filtroEstoque, setFiltroEstoque] = useState("")
 
-  const initialRef = useRef(null)
+  const [filtroAdicional, setFiltroAdicional] = useState("")
+  const [showSugestoesAdicional, setShowSugestoesAdicional] = useState(false)
+  const [itensEstoqueDoProdutoEditado, setItensEstoqueDoProdutoEditado] = useState<Array<{itemId: number, quantidade: number}>>([])
+
+  const initialRef = useRef<HTMLInputElement>(null)
 
   const categorias = ["todas", ...new Set(produtos.map((p) => p.categoria))]
 
@@ -126,8 +127,51 @@ const ProdutosPage = () => {
       imagem: "/placeholder.svg?height=100&width=100",
       categoria: "",
       ativo: true,
+      personalizacaoAtiva: false,
+      opcoesAdicionais: [],
+      opcoesRemover: [],
     })
     setEditId(null)
+    setFiltroAdicional("")
+    setShowSugestoesAdicional(false)
+    setItensEstoqueDoProdutoEditado([])
+  }
+
+  const handleAdicionarOpcaoAdicional = (nomeItem: string, precoItem: number = 0) => {
+    const nome = nomeItem.trim()
+    if (!nome) return
+    // Evitar duplicatas
+    if ((formData.opcoesAdicionais || []).some(a => a.nome === nome)) return
+    setFormData((prev) => ({
+      ...prev,
+      opcoesAdicionais: [...(prev.opcoesAdicionais || []), { nome, preco: precoItem }],
+    }))
+    setFiltroAdicional("")
+    setShowSugestoesAdicional(false)
+  }
+
+  const handleAtualizarPrecoAdicional = (index: number, novoPreco: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      opcoesAdicionais: (prev.opcoesAdicionais || []).map((a, i) => i === index ? { ...a, preco: novoPreco } : a),
+    }))
+  }
+
+  const handleRemoverOpcaoAdicional = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      opcoesAdicionais: (prev.opcoesAdicionais || []).filter((_, i) => i !== index),
+    }))
+  }
+
+  const handleToggleRemover = (nomeItem: string) => {
+    const jaExiste = (formData.opcoesRemover || []).includes(nomeItem)
+    setFormData((prev) => ({
+      ...prev,
+      opcoesRemover: jaExiste
+        ? (prev.opcoesRemover || []).filter(r => r !== nomeItem)
+        : [...(prev.opcoesRemover || []), nomeItem],
+    }))
   }
 
   const handleSubmit = () => {
@@ -166,13 +210,20 @@ const ProdutosPage = () => {
   }
 
   const handleEdit = (produto: Produto) => {
+    const produtoComItens = getProdutoComItensEstoque(produto.id)
+    setItensEstoqueDoProdutoEditado(produtoComItens?.itensEstoque || [])
     setFormData({
       nome: produto.nome,
       preco: produto.preco,
       imagem: produto.imagem,
       categoria: produto.categoria,
       ativo: produto.ativo,
+      personalizacaoAtiva: produto.personalizacaoAtiva || false,
+      opcoesAdicionais: produto.opcoesAdicionais || [],
+      opcoesRemover: produto.opcoesRemover || [],
     })
+    setFiltroAdicional("")
+    setShowSugestoesAdicional(false)
     setEditId(produto.id)
     onOpen()
   }
@@ -410,6 +461,18 @@ const ProdutosPage = () => {
                   >
                     {produto.ativo ? "Ativo" : "Inativo"}
                   </Badge>
+                  {produto.personalizacaoAtiva && (
+                    <Badge
+                      position="absolute"
+                      top={3}
+                      left={3}
+                      colorScheme="orange"
+                      px={2} py={1} borderRadius="full" variant="solid"
+                      fontSize="xs"
+                    >
+                      ✦ Personalizável
+                    </Badge>
+                  )}
                 </Box>
                 <Box p={5} flex="1" display="flex" flexDirection="column">
                   <Flex justify="space-between" align="start" mb={2}>
@@ -475,7 +538,7 @@ const ProdutosPage = () => {
       )}
 
       {/* Modal Criar/Editar Produto */}
-      <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={initialRef} size="lg" isCentered motionPreset="slideInBottom">
+      <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={initialRef as any} size="lg" isCentered motionPreset="slideInBottom">
         <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
         <ModalContent bg="brand.surface" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl">
           <ModalHeader color="brand.light">{editId !== null ? "Editar Produto" : "Novo Produto"}</ModalHeader>
@@ -541,6 +604,200 @@ const ProdutosPage = () => {
               </FormLabel>
               <Switch id="ativo" isChecked={formData.ativo} onChange={handleSwitchChange} colorScheme="orange" ml={4} />
             </FormControl>
+
+            {/* Seção de Personalização */}
+            <Divider borderColor="whiteAlpha.200" mb={4} />
+            <FormControl display="flex" alignItems="center" mb={2}>
+              <FormLabel htmlFor="personalizacao" mb="0" color="brand.light" fontWeight="bold">
+                Habilitar Personalização na Comanda
+              </FormLabel>
+              <Switch
+                id="personalizacao"
+                isChecked={formData.personalizacaoAtiva || false}
+                onChange={(e) => setFormData((prev) => ({ ...prev, personalizacaoAtiva: e.target.checked }))}
+                colorScheme="orange"
+                ml={4}
+              />
+            </FormControl>
+            <Text color="gray.500" fontSize="xs" mb={4}>
+              Quando ativo, ao adicionar este item na comanda será exibido um modal para personalizar o pedido.
+            </Text>
+
+            <Collapse in={formData.personalizacaoAtiva || false} animateOpacity>
+              <VStack align="stretch" spacing={5} bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px dashed" borderColor="brand.primary">
+                
+                {/* Adicionais via Estoque */}
+                <Box>
+                  <Text color="brand.secondary" fontWeight="bold" fontSize="sm" mb={1}>
+                    Opções de Adicionais (Extras)
+                  </Text>
+                  <Text color="gray.500" fontSize="xs" mb={3}>
+                    Selecione itens do estoque que podem ser adicionados neste produto.
+                  </Text>
+
+                  {/* Lista de adicionais já adicionados */}
+                  {(formData.opcoesAdicionais || []).length > 0 && (
+                    <VStack align="stretch" spacing={2} mb={3}>
+                      {(formData.opcoesAdicionais || []).map((adc, i) => (
+                        <Flex key={i} align="center" gap={2} bg="whiteAlpha.100" p={2} borderRadius="lg" border="1px solid" borderColor="brand.primary">
+                          <Text color="brand.light" fontSize="sm" flex="1" fontWeight="medium">{adc.nome}</Text>
+                          <Text color="gray.400" fontSize="xs">Preço extra:</Text>
+                          <NumberInput
+                            size="xs"
+                            min={0}
+                            step={0.5}
+                            precision={2}
+                            value={adc.preco}
+                            onChange={(val) => handleAtualizarPrecoAdicional(i, parseFloat(val) || 0)}
+                            w="80px"
+                          >
+                            <NumberInputField
+                              bg="whiteAlpha.100"
+                              color="brand.secondary"
+                              borderColor="brand.surfaceborder"
+                              textAlign="center"
+                              fontSize="xs"
+                            />
+                          </NumberInput>
+                          <IconButton
+                            aria-label="Remover adicional"
+                            icon={<FiTrash2 />}
+                            size="xs"
+                            variant="ghost"
+                            color="red.400"
+                            onClick={() => handleRemoverOpcaoAdicional(i)}
+                          />
+                        </Flex>
+                      ))}
+                    </VStack>
+                  )}
+
+                  {/* Campo de busca autocomplete */}
+                  <Box position="relative">
+                    <InputGroup size="sm">
+                      <InputLeftElement pointerEvents="none">
+                        <FiSearch color="gray" />
+                      </InputLeftElement>
+                      <Input
+                        placeholder="Buscar item do estoque..."
+                        value={filtroAdicional}
+                        onChange={(e) => { setFiltroAdicional(e.target.value); setShowSugestoesAdicional(true) }}
+                        onFocus={() => setShowSugestoesAdicional(true)}
+                        onBlur={() => setTimeout(() => setShowSugestoesAdicional(false), 150)}
+                        bg="whiteAlpha.100"
+                        color="brand.light"
+                        borderColor="brand.surfaceborder"
+                        _focus={{ borderColor: "brand.primary" }}
+                      />
+                    </InputGroup>
+                    {showSugestoesAdicional && filtroAdicional.length > 0 && (
+                      <Box
+                        position="absolute"
+                        zIndex="20"
+                        bg="#0F172A"
+                        w="100%"
+                        borderRadius="md"
+                        mt={1}
+                        border="1px solid"
+                        borderColor="brand.surfaceborder"
+                        boxShadow="xl"
+                        maxH="180px"
+                        overflowY="auto"
+                      >
+                        {estoque
+                          .filter(item =>
+                            item.nome.toLowerCase().includes(filtroAdicional.toLowerCase()) &&
+                            !(formData.opcoesAdicionais || []).some(a => a.nome === item.nome)
+                          )
+                          .slice(0, 8)
+                          .map(item => (
+                            <Box
+                              key={item.id}
+                              px={3} py={2}
+                              cursor="pointer"
+                              _hover={{ bg: "whiteAlpha.100" }}
+                              onMouseDown={() => handleAdicionarOpcaoAdicional(item.nome, 0)}
+                              borderBottom="1px solid"
+                              borderColor="whiteAlpha.100"
+                              _last={{ borderBottom: "none" }}
+                            >
+                              <Text color="brand.light" fontSize="sm">{item.nome}</Text>
+                              <Text color="gray.500" fontSize="xs">{item.unidade} • Custo: R$ {item.precoUnitario.toFixed(2)}/{item.unidade}</Text>
+                            </Box>
+                          ))
+                        }
+                        {estoque.filter(item =>
+                          item.nome.toLowerCase().includes(filtroAdicional.toLowerCase()) &&
+                          !(formData.opcoesAdicionais || []).some(a => a.nome === item.nome)
+                        ).length === 0 && (
+                          <Box px={3} py={2}>
+                            <Text color="gray.500" fontSize="sm">Nenhum item encontrado.</Text>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+
+                <Divider borderColor="whiteAlpha.200" />
+
+                {/* Itens a Remover via receita do produto */}
+                <Box>
+                  <Text color="red.300" fontWeight="bold" fontSize="sm" mb={1}>
+                    Ingredientes que Podem ser Removidos
+                  </Text>
+                  <Text color="gray.500" fontSize="xs" mb={3}>
+                    Marque os ingredientes da receita que o cliente pode pedir para remover. Remover não dá baixa no estoque.
+                  </Text>
+
+                  {itensEstoqueDoProdutoEditado.length === 0 ? (
+                    <Box p={3} bg="whiteAlpha.50" borderRadius="lg" border="1px dashed" borderColor="whiteAlpha.200">
+                      <Text color="gray.500" fontSize="xs" textAlign="center">
+                        Este produto não possui ingredientes vinculados na Ficha Técnica. Vincule ingredientes primeiro para habilitar esta opção.
+                      </Text>
+                    </Box>
+                  ) : (
+                    <VStack align="stretch" spacing={2}>
+                      {itensEstoqueDoProdutoEditado.map(assoc => {
+                        const itemEstoque = estoque.find(i => i.id === assoc.itemId)
+                        if (!itemEstoque) return null
+                        const isMarcado = (formData.opcoesRemover || []).includes(itemEstoque.nome)
+                        return (
+                          <Flex
+                            key={assoc.itemId}
+                            p={3}
+                            borderRadius="lg"
+                            border="1px solid"
+                            borderColor={isMarcado ? "red.500" : "whiteAlpha.200"}
+                            bg={isMarcado ? "red.900" : "whiteAlpha.50"}
+                            align="center"
+                            justify="space-between"
+                            cursor="pointer"
+                            onClick={() => handleToggleRemover(itemEstoque.nome)}
+                            _hover={{ borderColor: "red.400" }}
+                            transition="all 0.15s"
+                          >
+                            <HStack>
+                              <Switch
+                                size="sm"
+                                colorScheme="red"
+                                isChecked={isMarcado}
+                                pointerEvents="none"
+                              />
+                              <Text color={isMarcado ? "white" : "gray.300"} fontSize="sm" fontWeight={isMarcado ? "bold" : "normal"}>
+                                {itemEstoque.nome}
+                              </Text>
+                            </HStack>
+                            <Text color="gray.500" fontSize="xs">{assoc.quantidade} {itemEstoque.unidade}</Text>
+                          </Flex>
+                        )
+                      })}
+                    </VStack>
+                  )}
+                </Box>
+
+              </VStack>
+            </Collapse>
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" color="gray.400" mr={3} onClick={onClose}>Cancelar</Button>

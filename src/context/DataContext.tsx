@@ -22,7 +22,7 @@ export interface Usuario {
   criadoEm: Date
 }
 
-// Atualize a interface Produto para incluir itensEstoque
+// Atualize a interface Produto para incluir itensEstoque e personalização
 export interface Produto {
   id: number
   nome: string
@@ -34,6 +34,10 @@ export interface Produto {
     itemId: number
     quantidade: number
   }>
+  // Campos de personalização por produto
+  personalizacaoAtiva?: boolean
+  opcoesAdicionais?: { nome: string; preco: number }[]
+  opcoesRemover?: string[]
 }
 
 export interface ItemPedido {
@@ -63,7 +67,8 @@ export interface Pedido {
   itens: Array<{
     nome: string
     quantidade: number
-    preco: number
+    preco: number           // Preço unitário total (base + adicionais)
+    precoBase?: number      // Preço base sem adicionais
     observacao?: string
     adicionais?: { nome: string; preco: number }[]
     removidos?: string[]
@@ -86,6 +91,8 @@ export interface Venda {
     nome: string
     quantidade: number
     valorUnitario: number
+    adicionais?: { nome: string; preco: number }[]
+    removidos?: string[]
   }>
 }
 
@@ -487,19 +494,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Função para adicionar produto
   const addProduto = async (produto: Omit<Produto, "id">) => {
     try {
-      // Remover itensEstoque antes de enviar para o backend
-      const { itensEstoque, ...produtoSemItens } = produto as any
+      // Separar itensEstoque (gerenciado localmente) dos outros campos
+      const { itensEstoque, ...produtoParaBackend } = produto as any
+      // Garantir que os campos de personalização sejam enviados
+      const produtoPayload = {
+        ...produtoParaBackend,
+        personalizacaoAtiva: produto.personalizacaoAtiva || false,
+        opcoesAdicionais: produto.opcoesAdicionais || [],
+        opcoesRemover: produto.opcoesRemover || [],
+      }
 
-      console.log("Enviando novo produto para o backend:", JSON.stringify(produtoSemItens, null, 2))
+      console.log("Enviando novo produto para o backend:", JSON.stringify(produtoPayload, null, 2))
 
-      const response = await api.post("/produtos", produtoSemItens)
+      const response = await api.post("/produtos", produtoPayload)
       const novoProduto = response.data
       console.log("Produto recebido do backend após criação:", novoProduto)
 
-      // Adicionar itensEstoque de volta ao produto
+      // Restaurar campos frontend-only
       const produtoCompleto = {
         ...novoProduto,
         itensEstoque: produto.itensEstoque || [],
+        personalizacaoAtiva: produto.personalizacaoAtiva || false,
+        opcoesAdicionais: produto.opcoesAdicionais || [],
+        opcoesRemover: produto.opcoesRemover || [],
       }
 
       setProdutos([...produtos, produtoCompleto])
@@ -512,6 +529,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...produto,
         id,
         itensEstoque: produto.itensEstoque || [],
+        personalizacaoAtiva: produto.personalizacaoAtiva || false,
+        opcoesAdicionais: produto.opcoesAdicionais || [],
+        opcoesRemover: produto.opcoesRemover || [],
       }
       setProdutos([...produtos, novoProduto])
       return novoProduto
@@ -521,25 +541,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Função para atualizar produto
   const updateProduto = async (produto: Produto) => {
     try {
-      // Remover itensEstoque antes de enviar para o backend
-      const { itensEstoque, ...produtoSemItens } = produto as any
+      // Separar itensEstoque (gerenciado localmente) dos outros campos
+      const { itensEstoque, ...produtoParaBackend } = produto as any
+      // Garantir que os campos de personalização sejam enviados
+      const produtoPayload = {
+        ...produtoParaBackend,
+        personalizacaoAtiva: produto.personalizacaoAtiva || false,
+        opcoesAdicionais: produto.opcoesAdicionais || [],
+        opcoesRemover: produto.opcoesRemover || [],
+      }
 
-      console.log("Enviando produto atualizado para o backend:", JSON.stringify(produtoSemItens, null, 2))
+      console.log("Enviando produto atualizado para o backend:", JSON.stringify(produtoPayload, null, 2))
 
-      const response = await api.put(`/produtos/${produto.id}`, produtoSemItens)
+      const response = await api.put(`/produtos/${produto.id}`, produtoPayload)
       const produtoAtualizado = response.data
       console.log("Produto recebido do backend após atualização:", produtoAtualizado)
 
-      // Adicionar itensEstoque de volta ao produto
+      // Restaurar todos os campos frontend-only
       const produtoCompleto = {
         ...produtoAtualizado,
         itensEstoque: produto.itensEstoque || [],
+        personalizacaoAtiva: produto.personalizacaoAtiva || false,
+        opcoesAdicionais: produto.opcoesAdicionais || [],
+        opcoesRemover: produto.opcoesRemover || [],
       }
 
       setProdutos(produtos.map((p) => (p.id === produto.id ? produtoCompleto : p)))
     } catch (err) {
       console.error("Erro ao atualizar produto:", err)
-      // Fallback para localStorage
+      // Fallback para localStorage — preservar tudo localmente
       setProdutos(produtos.map((p) => (p.id === produto.id ? produto : p)))
     }
   }
@@ -866,71 +896,74 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Função para atualizar o estoque após uma venda
   const atualizarEstoqueAposVenda = async (
-    itensVendidos: Array<{ nome: string; quantidade: number; valorUnitario: number }>,
+    itensVendidos: Array<{ nome: string; quantidade: number; valorUnitario: number; adicionais?: { nome: string; preco: number }[]; removidos?: string[] }>,
   ) => {
     try {
-      // Para cada item vendido, encontrar o produto correspondente
+      // Mapa de deduções acumuladas: itemId -> quantidade total a descontar
+      // Isso evita o problema de closure desatualizado ao somar receita + adicionais do mesmo item
+      const deducoes = new Map<number, number>()
+
       for (const itemVendido of itensVendidos) {
-        console.log(`Processando item vendido: ${itemVendido.nome} (${itemVendido.quantidade} unidades)`)
+        console.log(`Calculando deduções para: ${itemVendido.nome} (${itemVendido.quantidade}x)`)
 
-        // Encontrar o produto pelo nome
+        // --- 1. Receita base do produto (exceto removidos) ---
         const produto = produtos.find((p) => p.nome === itemVendido.nome)
-
         if (produto) {
-          console.log(`Produto encontrado: ${produto.nome} (ID: ${produto.id})`)
-
-          // Buscar as relações do produto
           const relacoesDosProduto = relacoesEstoque.filter((rel) => rel.produtoId === produto.id)
+          for (const relacao of relacoesDosProduto) {
+            const itemEstoque = estoque.find((item) => item.id === relacao.itemId)
+            if (!itemEstoque) continue
 
-          if (relacoesDosProduto.length > 0) {
-            console.log(`Relações encontradas: ${relacoesDosProduto.length}`)
-
-            // Para cada item de estoque associado ao produto
-            for (const relacao of relacoesDosProduto) {
-              // Encontrar o item de estoque
-              const itemEstoque = estoque.find((item) => item.id === relacao.itemId)
-
-              if (itemEstoque) {
-                // Calcular a quantidade a ser reduzida (quantidade vendida * quantidade necessária por produto)
-                const quantidadeReduzir = itemVendido.quantidade * relacao.quantidade
-
-                // Reduzir a quantidade do estoque
-                const novaQuantidade = Math.max(0, itemEstoque.quantidade - quantidadeReduzir)
-
-                console.log(
-                  `Atualizando estoque de ${itemEstoque.nome}: ${itemEstoque.quantidade} -> ${novaQuantidade} (redução de ${quantidadeReduzir})`,
-                )
-
-                // Atualizar o item de estoque
-                const itemAtualizado = {
-                  ...itemEstoque,
-                  quantidade: novaQuantidade,
-                  ultimaAtualizacao: new Date(),
-                }
-
-                // Enviar para a API
-                await api.put(`/estoque/${itemEstoque.id}`, itemAtualizado)
-
-                // Atualizar o estado local
-                await updateItemEstoque(itemAtualizado)
-
-                // Notificar se o estoque ficou abaixo do mínimo
-                if (novaQuantidade <= itemEstoque.estoqueMinimo && itemEstoque.quantidade > itemEstoque.estoqueMinimo) {
-                  toast({
-                    title: "Alerta de Estoque",
-                    description: `O item "${itemEstoque.nome}" está abaixo do nível mínimo (${itemEstoque.estoqueMinimo})`,
-                    status: "warning",
-                    duration: 5000,
-                    isClosable: true,
-                  })
-                }
-              }
+            const foiRemovido = (itemVendido.removidos || []).includes(itemEstoque.nome)
+            if (foiRemovido) {
+              console.log(`[Removido] Sem desconto de "${itemEstoque.nome}"`)
+              continue
             }
-          } else {
-            console.log(`Produto ${produto.nome} não possui relações com itens de estoque`)
+
+            const qtd = itemVendido.quantidade * relacao.quantidade
+            deducoes.set(itemEstoque.id, (deducoes.get(itemEstoque.id) || 0) + qtd)
+            console.log(`[Receita] +${qtd}x "${itemEstoque.nome}" → acumulado: ${(deducoes.get(itemEstoque.id) || 0)}`)
           }
-        } else {
-          console.log(`Produto não encontrado para o item: ${itemVendido.nome}`)
+        }
+
+        // --- 2. Adicionais pedidos pelo cliente ---
+        if (itemVendido.adicionais && itemVendido.adicionais.length > 0) {
+          for (const adicional of itemVendido.adicionais) {
+            // Busca case-insensitive para evitar problemas de capitalização
+            const itemEstoque = estoque.find(
+              (item) => item.nome.toLowerCase().trim() === adicional.nome.toLowerCase().trim()
+            )
+            if (!itemEstoque) {
+              console.log(`[Adicional] Item não encontrado no estoque: "${adicional.nome}"`)
+              continue
+            }
+            const qtd = itemVendido.quantidade * 1
+            deducoes.set(itemEstoque.id, (deducoes.get(itemEstoque.id) || 0) + qtd)
+            console.log(`[Adicional] +${qtd}x "${itemEstoque.nome}" → acumulado: ${deducoes.get(itemEstoque.id)}`)
+          }
+        }
+      }
+
+      // Aplicar todas as deduções de uma vez com os valores CORRETOS do estoque atual
+      for (const [itemId, quantidadeDescontar] of deducoes.entries()) {
+        const itemEstoque = estoque.find((item) => item.id === itemId)
+        if (!itemEstoque) continue
+
+        const novaQuantidade = Math.max(0, itemEstoque.quantidade - quantidadeDescontar)
+        console.log(`[Aplicando] "${itemEstoque.nome}": ${itemEstoque.quantidade} → ${novaQuantidade} (-${quantidadeDescontar})`)
+
+        const itemAtualizado = { ...itemEstoque, quantidade: novaQuantidade, ultimaAtualizacao: new Date() }
+        await api.put(`/estoque/${itemEstoque.id}`, itemAtualizado).catch(() => {})
+        await updateItemEstoque(itemAtualizado)
+
+        if (novaQuantidade <= itemEstoque.estoqueMinimo && itemEstoque.quantidade > itemEstoque.estoqueMinimo) {
+          toast({
+            title: "Alerta de Estoque",
+            description: `O item "${itemEstoque.nome}" está abaixo do nível mínimo (${itemEstoque.estoqueMinimo})`,
+            status: "warning",
+            duration: 5000,
+            isClosable: true,
+          })
         }
       }
     } catch (err) {
@@ -944,7 +977,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await api.post("/vendas", venda)
       const novaVenda = response.data
 
-      // Atualizar o estoque com base nos itens vendidos
+      // Atualizar o estoque com base nos itens vendidos (receita + adicionais)
       if (venda.itensVendidos && venda.itensVendidos.length > 0) {
         await atualizarEstoqueAposVenda(venda.itensVendidos)
       }
@@ -957,6 +990,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const id = vendas.length > 0 ? Math.max(...vendas.map((v) => v.id)) + 1 : 1
       const novaVenda = { ...venda, id }
       setVendas([...vendas, novaVenda])
+      // Também atualiza o estoque mesmo no fallback
+      if (venda.itensVendidos && venda.itensVendidos.length > 0) {
+        await atualizarEstoqueAposVenda(venda.itensVendidos)
+      }
       return novaVenda
     }
   }

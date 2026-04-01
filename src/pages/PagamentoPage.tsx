@@ -17,6 +17,7 @@ import {
   useToast,
   HStack,
   Icon,
+  IconButton,
   Divider,
   Badge,
   Stat,
@@ -28,7 +29,7 @@ import {
   Spinner,
 } from "@chakra-ui/react"
 import { motion } from "framer-motion"
-import { FiCreditCard, FiDollarSign, FiSmartphone, FiCheck, FiPrinter, FiAlertTriangle, FiArrowLeft } from "react-icons/fi"
+import { FiCreditCard, FiDollarSign, FiSmartphone, FiCheck, FiPrinter, FiAlertTriangle, FiArrowLeft, FiPlus, FiMinus, FiTag } from "react-icons/fi"
 import { useData, type Pedido, type Venda } from "../context/DataContext"
 
 type MetodoPagamento = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito"
@@ -119,6 +120,8 @@ const PagamentoPage = () => {
           nome: item.nome,
           quantidade: item.quantidade,
           valorUnitario: item.preco,
+          adicionais: item.adicionais || [],
+          removidos: item.removidos || [],
         })),
       }
 
@@ -214,20 +217,81 @@ const PagamentoPage = () => {
             </Flex>
 
             <Box flex="1" overflowY="auto" pr={2} sx={{"&::-webkit-scrollbar": { width: "4px" }, "&::-webkit-scrollbar-track": { background: "rgba(255,255,255,0.05)" }, "&::-webkit-scrollbar-thumb": { background: "rgba(255,255,255,0.2)", borderRadius: "24px" }}}>
-              <VStack align="stretch" spacing={4}>
+              <VStack align="stretch" spacing={0}>
                 {pedido.itens.map((item, index) => (
-                  <Flex key={index} justify="space-between" align="center" borderBottom="1px dashed" borderColor="whiteAlpha.100" pb={3}>
-                    <Box>
+                  <Box
+                    key={index}
+                    borderBottom="1px solid"
+                    borderColor="whiteAlpha.100"
+                    py={3}
+                    _last={{ borderBottom: "none" }}
+                  >
+                    {/* Linha principal: quantidade x nome + valor */}
+                    <Flex justify="space-between" align="center">
+                      <Flex align="center" gap={2}>
+                        <Badge
+                          bg="brand.primary"
+                          color="white"
+                          fontSize="xs"
+                          borderRadius="md"
+                          px={2}
+                          minW="28px"
+                          textAlign="center"
+                        >
+                          {item.quantidade}x
+                        </Badge>
+                        <Text color="brand.light" fontWeight="700" fontSize="md">
+                          {item.nome}
+                        </Text>
+                      </Flex>
                       <Text color="brand.light" fontWeight="600">
-                        <Text as="span" color="brand.secondary" mr={2}>{item.quantidade}x</Text>
-                        {item.nome}
+                        R$ {(item.preco * item.quantidade).toFixed(2)}
                       </Text>
-                      {item.observacao && (
-                        <Text fontSize="xs" color="gray.400" mt={1}>Obs: {item.observacao}</Text>
-                      )}
-                    </Box>
-                    <Text color="brand.light" fontWeight="500">R$ {(item.preco * item.quantidade).toFixed(2)}</Text>
-                  </Flex>
+                    </Flex>
+
+                    {/* Adicionais — subtítulo indentado */}
+                    {item.adicionais && item.adicionais.length > 0 && (
+                      <Box pl="44px" mt={1}>
+                        {item.adicionais.map((adic, i) => (
+                          <Flex key={i} align="center" gap={2} mt={0.5}>
+                            <FiPlus size={10} color="#68D391" />
+                            <Text fontSize="sm" color="green.300">
+                              {adic.nome}
+                              <Text as="span" color="green.500" ml={1} fontSize="xs">
+                                (+R$ {adic.preco.toFixed(2)})
+                              </Text>
+                            </Text>
+                          </Flex>
+                        ))}
+                      </Box>
+                    )}
+
+                    {/* Removidos — subtítulo indentado */}
+                    {item.removidos && item.removidos.length > 0 && (
+                      <Box pl="44px" mt={1}>
+                        {item.removidos.map((rem, i) => (
+                          <Flex key={i} align="center" gap={2} mt={0.5}>
+                            <FiMinus size={10} color="#FC8181" />
+                            <Text fontSize="sm" color="red.300" textDecoration="line-through">
+                              {rem}
+                            </Text>
+                          </Flex>
+                        ))}
+                      </Box>
+                    )}
+
+                    {/* Observação */}
+                    {item.observacao && (
+                      <Box pl="44px" mt={1}>
+                        <Flex align="center" gap={2}>
+                          <FiTag size={10} color="#ECC94B" />
+                          <Text fontSize="sm" color="gray.400" fontStyle="italic">
+                            "{item.observacao}"
+                          </Text>
+                        </Flex>
+                      </Box>
+                    )}
+                  </Box>
                 ))}
               </VStack>
             </Box>
