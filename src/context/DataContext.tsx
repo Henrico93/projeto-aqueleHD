@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useRef } from "react"
+import { io, Socket } from "socket.io-client"
 import api from "../services/api"
 import { useToast } from "@chakra-ui/react"
 
@@ -103,6 +104,20 @@ export interface ProdutoEstoqueRelacao {
   quantidade: number
 }
 
+export interface LogEstoque {
+  id?: number
+  itemId: number
+  itemNome: string
+  tipo: "entrada" | "saida" | "ajuste" | "venda"
+  quantidade: number
+  quantidadeAnterior: number
+  quantidadeNova: number
+  motivo: string
+  usuarioId?: string
+  usuarioNome?: string
+  dataHora: Date
+}
+
 interface DataContextType {
   clientes: Cliente[]
   produtos: Produto[]
@@ -132,14 +147,13 @@ interface DataContextType {
   atualizarEstoqueAposVenda: (
     itensVendidos: Array<{ nome: string; quantidade: number; valorUnitario: number }>,
   ) => Promise<void>
-  // Novas funções para gerenciar a relação entre produtos e itens de estoque
+  registrarLogEstoque: (log: Omit<LogEstoque, "id">) => Promise<void>
   associarItemEstoqueProduto: (produtoId: number, itemId: number, quantidade: number) => Promise<Produto>
   desassociarItemEstoqueProduto: (produtoId: number, itemId: number) => Promise<Produto>
   atualizarQuantidadeItemEstoqueProduto: (produtoId: number, itemId: number, quantidade: number) => Promise<Produto>
   getItensEstoqueProduto: (produtoId: number) => Array<{ itemId: number; quantidade: number }>
   getItensEstoqueDisponiveis: () => ItemEstoque[]
   getProdutoComItensEstoque: (produtoId: number) => Produto | undefined
-  // User Management e Auth
   login: (email: string, senha?: string) => Promise<boolean>
   logout: () => void
   addUsuario: (usuario: Omit<Usuario, "id" | "criadoEm">) => Promise<Usuario>
@@ -158,7 +172,6 @@ export const useData = () => {
 }
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Estados para armazenar os dados
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -168,8 +181,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<Usuario | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  // Estado para armazenar as relações produto-estoque localmente
   const [relacoesEstoque, setRelacoesEstoque] = useState<ProdutoEstoqueRelacao[]>([])
+  const socketRef = useRef<Socket | null>(null)
   const toast = useToast()
 
   // Função para carregar todos os dados da API
@@ -421,10 +434,51 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [relacoesEstoque])
 
-  // Carregar dados quando o componente for montado
   useEffect(() => {
+    const savedUser = localStorage.getItem("currentUser")
+    if (savedUser) {
+      try { setCurrentUser(JSON.parse(savedUser)) } catch {}
+    }
     refreshData()
   }, [])
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token || token === "undefined") return
+
+    const socket = io(import.meta.env.VITE_API_URL ?? "http://localhost:3000", {
+      auth: { token },
+      reconnectionAttempts: 3,
+      reconnectionDelay: 3000,
+      timeout: 5000,
+    })
+    socketRef.current = socket
+
+    socket.on("connect_error", () => {
+      // socket indisponível (backend antigo ou offline) — silencioso
+    })
+
+    socket.on("pedido:novo", (novoPedido: any) => {
+      const formatado = { ...novoPedido, timestamp: new Date(novoPedido.timestamp) }
+      setPedidos((prev) => {
+        if (prev.find((p) => p.id === formatado.id)) return prev
+        return [...prev, formatado]
+      })
+    })
+
+    socket.on("pedido:atualizado", (pedidoAtualizado: any) => {
+      const formatado = { ...pedidoAtualizado, timestamp: new Date(pedidoAtualizado.timestamp) }
+      setPedidos((prev) => prev.map((p) => (p.id === formatado.id ? formatado : p)))
+    })
+
+    socket.on("pedido:removido", ({ id }: { id: number }) => {
+      setPedidos((prev) => prev.filter((p) => p.id !== id))
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [currentUser])
 
   // Salvar dados no localStorage como backup quando houver alterações
   useEffect(() => {
@@ -998,13 +1052,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const registrarLogEstoque = async (log: Omit<LogEstoque, "id">) => {
+    try {
+      await api.post("/logs-estoque", log)
+    } catch {
+      // log de auditoria é best-effort; não bloqueia o fluxo principal
+    }
+  }
+
   // --- Funções de Autenticação e Gestão de Usuários ---
   const login = async (email: string, senha?: string) => {
     try {
       const response = await api.post("/usuarios/login", { email, senha });
-      const user = response.data;
-      setCurrentUser(user);
+      const data = response.data;
+
+      // Suporta resposta nova { token, user } e resposta legada (objeto direto)
+      const token: string | undefined = data.token;
+      const user = data.user ?? data;
+
+      if (token) {
+        localStorage.setItem("authToken", token);
+      }
       localStorage.setItem("currentUser", JSON.stringify(user));
+      setCurrentUser(user);
       return true;
     } catch (err) {
       console.error("Falha ao logar:", err);
@@ -1014,7 +1084,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setCurrentUser(null)
+    localStorage.removeItem("authToken")
     localStorage.removeItem("currentUser")
+    socketRef.current?.disconnect()
+    socketRef.current = null
   }
 
   const addUsuario = async (usuario: Omit<Usuario, "id" | "criadoEm">) => {
@@ -1099,7 +1172,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addVenda,
     refreshData,
     atualizarEstoqueAposVenda,
-    // Adicionar as novas funções ao contexto
+    registrarLogEstoque,
     associarItemEstoqueProduto,
     desassociarItemEstoqueProduto,
     atualizarQuantidadeItemEstoqueProduto,

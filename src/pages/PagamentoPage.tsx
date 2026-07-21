@@ -20,15 +20,12 @@ import {
   IconButton,
   Divider,
   Badge,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
   Grid,
   GridItem,
   Spinner,
 } from "@chakra-ui/react"
 import { motion } from "framer-motion"
+import { QRCodeSVG } from "qrcode.react"
 import { FiCreditCard, FiDollarSign, FiSmartphone, FiCheck, FiPrinter, FiAlertTriangle, FiArrowLeft, FiPlus, FiMinus, FiTag } from "react-icons/fi"
 import { useData, type Pedido, type Venda } from "../context/DataContext"
 
@@ -479,7 +476,7 @@ const PagamentoPage = () => {
               <Heading size="lg" color="white" mb={2}>Pagamento Aprovado!</Heading>
               <Text color="gray.400" mb={8}>A comanda #{pedidoId} foi liquidada com sucesso.</Text>
               
-              <Box bg="whiteAlpha.100" p={6} borderRadius="xl" w="100%" mb={8} border="1px solid" borderColor="whiteAlpha.200">
+              <Box bg="whiteAlpha.100" p={5} borderRadius="xl" w="100%" mb={5} border="1px solid" borderColor="whiteAlpha.200">
                 <Flex justify="space-between" mb={3}>
                   <Text color="gray.400">Método Usado</Text>
                   <Text color="white" fontWeight="bold">
@@ -488,6 +485,10 @@ const PagamentoPage = () => {
                     {metodoPagamento === "cartao_credito" && "Cartão de Crédito"}
                     {metodoPagamento === "cartao_debito" && "Cartão de Débito"}
                   </Text>
+                </Flex>
+                <Flex justify="space-between" mb={3}>
+                  <Text color="gray.400">Valor Pago</Text>
+                  <Text color="brand.secondary" fontWeight="bold">R$ {valorTotal.toFixed(2)}</Text>
                 </Flex>
                 <Flex justify="space-between" mb={3}>
                   <Text color="gray.400">Data/Hora</Text>
@@ -502,6 +503,33 @@ const PagamentoPage = () => {
                     </Flex>
                   </>
                 ) : null}
+              </Box>
+
+              <Box bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100" w="100%" mb={5}>
+                <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wider" mb={3} textAlign="center">
+                  Comprovante Digital (QR Code)
+                </Text>
+                <Flex justify="center">
+                  <Box bg="white" p={3} borderRadius="xl" display="inline-block">
+                    <QRCodeSVG
+                      value={JSON.stringify({
+                        estabelecimento: "Aquele Hot Dogs",
+                        comanda: `#${pedidoId}`,
+                        cliente: pedido.cliente,
+                        mesa: pedido.mesa,
+                        valor: `R$ ${valorTotal.toFixed(2)}`,
+                        pagamento: metodoPagamento,
+                        dataHora: new Date().toLocaleString("pt-BR"),
+                        itens: pedido.itens.map((i) => `${i.quantidade}x ${i.nome}`).join(", "),
+                      })}
+                      size={140}
+                      level="M"
+                    />
+                  </Box>
+                </Flex>
+                <Text color="gray.500" fontSize="xs" textAlign="center" mt={2}>
+                  Escaneie para ver o resumo do pedido
+                </Text>
               </Box>
 
               <HStack spacing={4} w="100%">

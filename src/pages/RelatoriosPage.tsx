@@ -43,13 +43,28 @@ import {
   Radio,
   Input,
   FormControl,
-  FormLabel
+  FormLabel,
 } from "@chakra-ui/react"
 import { motion } from "framer-motion"
 import { FiTrendingUp, FiDollarSign, FiPieChart, FiBarChart2, FiList, FiDownload } from "react-icons/fi"
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  ArcElement,
+  BarElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js"
+import { Line, Doughnut, Bar } from "react-chartjs-2"
 import { useData } from "../context/DataContext"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, BarElement, Tooltip, Legend, Filler)
 
 const MotionBox = motion(Box)
 const MotionGridItem = motion(GridItem)
@@ -453,26 +468,46 @@ const RelatoriosPage = () => {
                       <Heading size="md" color="brand.light">Faturamento Diário</Heading>
                     </Flex>
                     {dadosDiarios.labels.length > 0 ? (
-                      <VStack spacing={4} align="stretch">
-                        {dadosDiarios.labels.map((label, index) => (
-                          <Box key={index}>
-                            <Flex justify="space-between" mb={2}>
-                              <Text color="gray.400" fontSize="sm" fontWeight="medium">{label}</Text>
-                              <Text color="brand.secondary" fontSize="sm" fontWeight="bold">
-                                {formatarValor(dadosDiarios.valores[index])}
-                              </Text>
-                            </Flex>
-                            <Progress
-                              value={(dadosDiarios.valores[index] / maxValorDiario) * 100}
-                              colorScheme="orange"
-                              size="sm"
-                              borderRadius="full"
-                              bg="whiteAlpha.100"
-                              sx={{ "& > div": { background: "linear-gradient(90deg, #FF6B00 0%, #FFB01A 100%)" } }}
-                            />
-                          </Box>
-                        ))}
-                      </VStack>
+                      <Box h="260px">
+                        <Line
+                          data={{
+                            labels: dadosDiarios.labels,
+                            datasets: [{
+                              label: "Faturamento (R$)",
+                              data: dadosDiarios.valores,
+                              borderColor: "#FF6B00",
+                              backgroundColor: "rgba(255,107,0,0.12)",
+                              pointBackgroundColor: "#FF6B00",
+                              pointBorderColor: "#fff",
+                              pointRadius: 4,
+                              tension: 0.4,
+                              fill: true,
+                            }],
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => `R$ ${Number(ctx.raw).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+                                },
+                              },
+                            },
+                            scales: {
+                              x: {
+                                ticks: { color: "#94A3B8", maxTicksLimit: 7, font: { size: 10 } },
+                                grid: { color: "rgba(255,255,255,0.05)" },
+                              },
+                              y: {
+                                ticks: { color: "#94A3B8", callback: (v) => `R$${Number(v).toFixed(0)}` },
+                                grid: { color: "rgba(255,255,255,0.05)" },
+                              },
+                            },
+                          }}
+                        />
+                      </Box>
                     ) : (
                       <Flex justify="center" align="center" h="200px">
                         <Text color="gray.500">Nenhum dado disponível para o período selecionado.</Text>
@@ -484,33 +519,57 @@ const RelatoriosPage = () => {
                 <GridItem>
                   <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder" height="100%">
                     <Flex align="center" gap={3} mb={6}>
-                       <Box p={2} bg="blue.500" borderRadius="md" opacity={0.8}><FiPieChart color="white" /></Box>
+                      <Box p={2} bg="blue.500" borderRadius="md" opacity={0.8}><FiPieChart color="white" /></Box>
                       <Heading size="md" color="brand.light">Formas de Pagamento</Heading>
                     </Flex>
                     {Object.keys(dadosFaturamento.formaPagamento).length > 0 ? (
-                      <VStack spacing={5} align="stretch">
-                        {Object.entries(dadosFaturamento.formaPagamento).sort((a,b)=>b[1]-a[1]).map(([forma, valor], index) => {
-                          const totalFormas = Object.values(dadosFaturamento.formaPagamento).reduce((a, b) => a + b, 0)
-                          const porcentagem = (valor / totalFormas) * 100
-                          const color = chartColors[index % chartColors.length]
-                          return (
-                            <Box key={index}>
-                              <Flex justify="space-between" mb={2}>
+                      <Flex direction="column" align="center" gap={4}>
+                        <Box h="200px" w="200px">
+                          <Doughnut
+                            data={{
+                              labels: Object.keys(dadosFaturamento.formaPagamento).map((f) =>
+                                f === "pix" ? "PIX" : f === "dinheiro" ? "Dinheiro" : f === "cartao_credito" ? "Crédito" : "Débito"
+                              ),
+                              datasets: [{
+                                data: Object.values(dadosFaturamento.formaPagamento),
+                                backgroundColor: chartColors,
+                                borderColor: "#0B1120",
+                                borderWidth: 3,
+                              }],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              cutout: "68%",
+                              plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                  callbacks: {
+                                    label: (ctx) => ` R$ ${Number(ctx.raw).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+                                  },
+                                },
+                              },
+                            }}
+                          />
+                        </Box>
+                        <VStack spacing={2} align="stretch" w="100%">
+                          {Object.entries(dadosFaturamento.formaPagamento).sort((a, b) => b[1] - a[1]).map(([forma, valor], idx) => {
+                            const total = Object.values(dadosFaturamento.formaPagamento).reduce((a, b) => a + b, 0)
+                            const pct = ((valor / total) * 100).toFixed(1)
+                            return (
+                              <Flex key={idx} justify="space-between" align="center">
                                 <HStack>
-                                  <Circle size="10px" bg={color} boxShadow={`0 0 10px ${color}`} />
-                                  <Text color="brand.light" fontSize="sm" fontWeight="medium">
-                                    {forma === "pix" ? "PIX" : forma === "dinheiro" ? "Dinheiro" : forma === "cartao_credito" ? "Cartão de Crédito" : forma === "cartao_debito" ? "Cartão de Débito" : forma}
+                                  <Circle size="8px" bg={chartColors[idx % chartColors.length]} />
+                                  <Text color="brand.light" fontSize="sm">
+                                    {forma === "pix" ? "PIX" : forma === "dinheiro" ? "Dinheiro" : forma === "cartao_credito" ? "Cartão de Crédito" : "Cartão de Débito"}
                                   </Text>
                                 </HStack>
-                                <Text color="gray.400" fontSize="sm">
-                                  {formatarValor(valor)} ({porcentagem.toFixed(1)}%)
-                                </Text>
+                                <Text color="gray.400" fontSize="sm">{formatarValor(valor)} ({pct}%)</Text>
                               </Flex>
-                              <Progress value={porcentagem} size="xs" borderRadius="full" bg="whiteAlpha.100" sx={{ "& > div": { background: color } }} />
-                            </Box>
-                          )
-                        })}
-                      </VStack>
+                            )
+                          })}
+                        </VStack>
+                      </Flex>
                     ) : (
                       <Flex justify="center" align="center" h="200px">
                         <Text color="gray.500">Nenhum dado.</Text>
@@ -527,25 +586,42 @@ const RelatoriosPage = () => {
                   <Box bg="whiteAlpha.50" p={6} borderRadius="xl" border="1px solid" borderColor="brand.surfaceborder" height="100%">
                     <Heading size="md" color="brand.light" mb={6}>Mais Vendidos</Heading>
                     {dadosFaturamento.produtosMaisVendidos.length > 0 ? (
-                      <VStack spacing={4} align="stretch">
-                        {dadosFaturamento.produtosMaisVendidos.map((produto, index) => (
-                          <Box key={index}>
-                            <Flex justify="space-between" mb={2}>
-                              <Text color="brand.light" isTruncated maxW="70%" fontWeight="medium">
-                                {index + 1}. {produto.nome}
-                              </Text>
-                              <Text color="brand.secondary" fontWeight="bold">{produto.quantidade} un.</Text>
-                            </Flex>
-                            <Progress
-                              value={(produto.quantidade / maxQuantidadeProduto) * 100}
-                              size="xs"
-                              borderRadius="full"
-                              bg="whiteAlpha.100"
-                              sx={{ "& > div": { background: "linear-gradient(90deg, #FF6B00 0%, #FFB01A 100%)" } }}
-                            />
-                          </Box>
-                        ))}
-                      </VStack>
+                      <Box h="320px">
+                        <Bar
+                          data={{
+                            labels: dadosFaturamento.produtosMaisVendidos.slice(0, 7).map((p) =>
+                              p.nome.length > 16 ? p.nome.substring(0, 14) + "…" : p.nome
+                            ),
+                            datasets: [{
+                              label: "Unidades vendidas",
+                              data: dadosFaturamento.produtosMaisVendidos.slice(0, 7).map((p) => p.quantidade),
+                              backgroundColor: chartColors.map((c) => c + "CC"),
+                              borderColor: chartColors,
+                              borderWidth: 2,
+                              borderRadius: 6,
+                            }],
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: "y" as const,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: { callbacks: { label: (ctx) => ` ${ctx.raw} unidades` } },
+                            },
+                            scales: {
+                              x: {
+                                ticks: { color: "#94A3B8" },
+                                grid: { color: "rgba(255,255,255,0.05)" },
+                              },
+                              y: {
+                                ticks: { color: "#E2E8F0", font: { size: 11 } },
+                                grid: { display: false },
+                              },
+                            },
+                          }}
+                        />
+                      </Box>
                     ) : (
                       <Flex justify="center" align="center" h="200px">
                         <Text color="gray.500">Nenhum dado.</Text>
