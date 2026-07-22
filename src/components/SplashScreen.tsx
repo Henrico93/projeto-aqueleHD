@@ -17,40 +17,35 @@ const Salsicha = () => (
   </svg>
 )
 
-/*
-  Pão de trás: metade superior do bun + peça lateral direita que desce
-  até o pão da frente, criando a ilusão de que os dois pães são um só.
-*/
-const PaoTras = () => (
-  <svg width="132" height="58" viewBox="0 0 132 58" fill="none">
-    {/* profundidade/sombra da metade de trás */}
-    <rect x="14" y="18" width="114" height="10" rx="5" fill="#6E3710" />
-    {/* corpo */}
-    <rect x="14" y="5"  width="114" height="20" rx="9" fill="#B86820" />
-    {/* miolo */}
-    <rect x="19" y="5"  width="104" height="14" rx="7" fill="#E8A040" />
+/* Metade superior do pão — leve arco no topo, gergelim */
+const PaoCima = () => (
+  <svg width="130" height="32" viewBox="0 0 130 32" fill="none">
+    {/* sombra base */}
+    <rect x="4" y="24" width="122" height="7" rx="3" fill="#7A3E0E" />
+    {/* arco principal (bem achatado — hot dog, não hamburguer) */}
+    <path d="M5 27 Q5 3 65 2 Q125 3 125 27 Z" fill="#B86820" />
+    {/* camada mais clara */}
+    <path d="M12 27 Q12 9 65 8 Q118 9 118 27 Z" fill="#D8873A" />
+    {/* gergelim */}
+    <ellipse cx="38" cy="18" rx="5"   ry="2.5" fill="#E8B870" transform="rotate(-15 38 18)" />
+    <ellipse cx="65" cy="13" rx="5"   ry="2.5" fill="#E8B870" />
+    <ellipse cx="92" cy="18" rx="5"   ry="2.5" fill="#E8B870" transform="rotate(15 92 18)" />
     {/* brilho */}
-    <ellipse cx="76" cy="11" rx="36" ry="4" fill="rgba(255,215,140,0.20)" />
-
-    {/* Conexão lateral direita: une visualmente o pão de trás ao pão da frente */}
-    {/* face lateral (lado direito do pão, visto de frente) */}
-    <path d="M116 24 L128 17 L128 56 L116 52 Z" fill="#9A5018" />
-    {/* sombra do topo da conexão (vinco do pão) */}
-    <path d="M116 24 L128 17 L128 25 L116 30 Z" fill="#6E3710" />
+    <ellipse cx="46" cy="13" rx="18" ry="6" fill="rgba(255,215,120,0.16)" />
   </svg>
 )
 
-/* Pão da frente: metade inferior do bun, centralizado */
-const PaoFrente = () => (
-  <svg width="132" height="30" viewBox="0 0 132 30" fill="none">
-    {/* profundidade */}
-    <rect x="4" y="17" width="124" height="11" rx="5" fill="#6E3710" />
+/* Metade inferior do pão — plana (cradle) */
+const PaoBaixo = () => (
+  <svg width="130" height="18" viewBox="0 0 130 18" fill="none">
+    {/* sombra */}
+    <rect x="4" y="10" width="122" height="7"  rx="3" fill="#7A3E0E" />
     {/* corpo */}
-    <rect x="4" y="4"  width="124" height="19" rx="9" fill="#B86820" />
+    <rect x="4" y="3"  width="122" height="12" rx="6" fill="#B86820" />
     {/* miolo */}
-    <rect x="9" y="4"  width="114" height="13" rx="7" fill="#E8A040" />
+    <rect x="9" y="3"  width="112" height="8"  rx="5" fill="#E8A040" />
     {/* brilho */}
-    <ellipse cx="66" cy="9" rx="40" ry="4" fill="rgba(255,215,140,0.22)" />
+    <ellipse cx="65" cy="7" rx="38" ry="3" fill="rgba(255,215,140,0.20)" />
   </svg>
 )
 
@@ -100,37 +95,29 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
           />
 
           {/*
-            Palco — hot dog em perspectiva 3/4:
-              PaoTras   z=1  → atrás da salsicha, deslocado +20px à direita e acima
-                              A peça lateral direita desce e une ao PaoFrente
-              Salsicha  z=10 → no meio, salta e gira
-              PaoFrente z=20 → na frente da salsicha, cobre a borda inferior
+            Palco:
+              PaoBaixo  z=1  — atrás da salsicha (base)
+              Salsicha  z=10 — no meio, salta e gira
+              PaoCima   z=20 — na frente, cobre a borda superior da salsicha
+            Os dois pães ficam bem próximos: gap de ~14px preenchido pela salsicha.
           */}
-          <Box position="relative" w="210px" h="200px">
+          <Box position="relative" w="190px" h="200px">
 
-            {/* Pão de trás — com conexão lateral */}
-            <MotionBox
+            {/* Metade inferior do pão */}
+            <Box
               position="absolute"
-              bottom="28px"
+              bottom="6px"
               left="50%"
-              marginLeft="-46px"   /* 66 - 20px offset para direita */
+              marginLeft="-65px"
               zIndex={1}
-              animate={{ y: [0, 0, -7, -7, -7, -7, -7, 0, 0] }}
-              transition={{
-                duration: 2.4,
-                times:    [0, 0.08, 0.18, 0.38, 0.52, 0.66, 0.82, 0.92, 1],
-                repeat: Infinity,
-                repeatDelay: 0.6,
-                ease: "easeInOut",
-              }}
             >
-              <PaoTras />
-            </MotionBox>
+              <PaoBaixo />
+            </Box>
 
             {/* Salsicha */}
             <MotionBox
               position="absolute"
-              bottom="16px"
+              bottom="20px"
               left="50%"
               marginLeft="-55px"
               zIndex={10}
@@ -151,16 +138,24 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
               <Salsicha />
             </MotionBox>
 
-            {/* Pão da frente */}
-            <Box
+            {/* Metade superior do pão */}
+            <MotionBox
               position="absolute"
-              bottom="2px"
+              bottom="40px"
               left="50%"
-              marginLeft="-66px"
+              marginLeft="-65px"
               zIndex={20}
+              animate={{ y: [0, 0, -7, -7, -7, -7, -7, 0, 0] }}
+              transition={{
+                duration: 2.4,
+                times:    [0, 0.08, 0.18, 0.38, 0.52, 0.66, 0.82, 0.92, 1],
+                repeat: Infinity,
+                repeatDelay: 0.6,
+                ease: "easeInOut",
+              }}
             >
-              <PaoFrente />
-            </Box>
+              <PaoCima />
+            </MotionBox>
           </Box>
 
           {/* Título */}
