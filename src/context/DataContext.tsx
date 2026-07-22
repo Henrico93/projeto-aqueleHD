@@ -178,7 +178,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [estoque, setEstoque] = useState<ItemEstoque[]>([])
   const [vendas, setVendas] = useState<Venda[]>([])
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
-  const [currentUser, setCurrentUser] = useState<Usuario | null>(null)
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(() => {
+    try {
+      const stored = localStorage.getItem("currentUser")
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [relacoesEstoque, setRelacoesEstoque] = useState<ProdutoEstoqueRelacao[]>([])
