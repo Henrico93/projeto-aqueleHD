@@ -25,7 +25,7 @@ const Layout = ({ children }: LayoutProps) => {
           overflowY="auto"
           position="relative"
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="sync">
             <motion.div
               key={location.pathname}
               initial={{ opacity: 0, y: 20 }}

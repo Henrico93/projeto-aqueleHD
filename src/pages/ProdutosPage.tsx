@@ -807,7 +807,7 @@ const ProdutosPage = () => {
       </Modal>
 
       {/* Modal Ficha Técnica / Receita */}
-      <Modal isOpen={isOpenEstoque} onClose={onCloseEstoque} size="xl" isCentered motionPreset="slideInBottom">
+      <Modal isOpen={isOpenEstoque} onClose={onCloseEstoque} size="xl" isCentered motionPreset="none">
         <ModalOverlay backdropFilter="blur(5px)" bg="blackAlpha.700" />
         <ModalContent bg="brand.surface" borderColor="brand.surfaceborder" borderWidth={1} borderRadius="2xl">
           <ModalHeader color="brand.light">

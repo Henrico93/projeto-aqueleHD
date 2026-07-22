@@ -16,7 +16,7 @@ import EquipePage from "./pages/EquipePage"
 import HistoricoPage from "./pages/HistoricoPage"
 import ComprovantePage from "./pages/ComprovantePage"
 import { DataProvider } from "./context/DataContext"
-import LoadingOverlay from "./components/LoadingOverlay"
+import SplashScreen from "./components/SplashScreen"
 import { useData } from "./context/DataContext"
 
 const INATIVIDADE_MS = 30 * 60 * 1000 // 30 minutos
@@ -66,11 +66,11 @@ const ProtectedRoute = () => {
 }
 
 const AppContent = () => {
-  const { loading, error } = useData()
+  const { loading } = useData()
 
   return (
     <>
-      <LoadingOverlay isLoading={loading} error={error} />
+      <SplashScreen isVisible={loading} />
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

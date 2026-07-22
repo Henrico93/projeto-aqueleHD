@@ -36,7 +36,7 @@ import {
 } from "@chakra-ui/react"
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
-import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart, FiUser, FiTag } from "react-icons/fi"
+import { FiPlus, FiMinus, FiSave, FiX, FiShoppingCart, FiUser, FiTag, FiSearch } from "react-icons/fi"
 import { useData, type ItemPedido, type Cliente, Produto } from "../context/DataContext"
 
 const MotionBox = motion(Box)
@@ -68,6 +68,7 @@ const NovoPedidoPage = () => {
   const [obsModal, setObsModal] = useState("")
 
   const categorias = [...new Set(produtos.map((p) => p.categoria))]
+  const [buscaProduto, setBuscaProduto] = useState("")
 
   // Refs for keyboard shortcuts
   const clienteInputRef = useRef<HTMLInputElement>(null)
@@ -326,6 +327,26 @@ const NovoPedidoPage = () => {
 
           <Box variant="glass" borderRadius="2xl" overflow="hidden">
             <Tabs variant="soft-rounded" colorScheme="orange" p={4}>
+              {/* Campo de busca */}
+              <Flex mb={4} position="relative">
+                <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" zIndex={1} pointerEvents="none">
+                  <FiSearch color="#9CA3AF" size={16} />
+                </Box>
+                <Input
+                  placeholder="Buscar produto..."
+                  value={buscaProduto}
+                  onChange={(e) => setBuscaProduto(e.target.value)}
+                  pl={9}
+                  bg="whiteAlpha.100"
+                  color="brand.light"
+                  border="1px solid"
+                  borderColor="brand.surfaceborder"
+                  borderRadius="full"
+                  _placeholder={{ color: "whiteAlpha.400" }}
+                  _focus={{ borderColor: "brand.primary", boxShadow: "0 0 0 1px #FF6B00" }}
+                />
+              </Flex>
+
               <TabList mb={4} overflowX="auto" pb={2} css={{"&::-webkit-scrollbar":{display:"none"}}}>
                 <Tab color="brand.light" _selected={{ bg: "brand.primary", color: "white" }}>Todos</Tab>
                 {categorias.map((cat) => (
@@ -338,7 +359,7 @@ const NovoPedidoPage = () => {
               <TabPanels>
                 <TabPanel px={0}>
                   <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
-                    {produtos.filter((p) => p.ativo).map((produto, idx) => (
+                    {produtos.filter((p) => p.ativo && (!buscaProduto || p.nome.toLowerCase().includes(buscaProduto.toLowerCase()))).map((produto, idx) => (
                       <MotionGridItem
                         key={produto.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }}
                         bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100"
@@ -369,7 +390,7 @@ const NovoPedidoPage = () => {
                 {categorias.map((categoria) => (
                   <TabPanel key={categoria} px={0}>
                     <Grid templateColumns={{ base: "repeat(1, 1fr)", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
-                      {produtos.filter((p) => p.categoria === categoria && p.ativo).map((produto, idx) => (
+                      {produtos.filter((p) => p.categoria === categoria && p.ativo && (!buscaProduto || p.nome.toLowerCase().includes(buscaProduto.toLowerCase()))).map((produto, idx) => (
                         <MotionGridItem
                           key={produto.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }}
                           bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100"
