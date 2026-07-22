@@ -23,32 +23,34 @@ const Salsicha = () => (
 )
 
 const PaoCima = () => (
-  <svg width="140" height="66" viewBox="0 0 140 66" fill="none">
-    {/* base arredondada (parte debaixo do pão de cima) */}
-    <ellipse cx="70" cy="55" rx="64" ry="14" fill="#A0611A" />
-    {/* corpo do pão */}
-    <ellipse cx="70" cy="38" rx="64" ry="30" fill="#C8822A" />
-    {/* camada mais clara */}
-    <ellipse cx="70" cy="32" rx="58" ry="25" fill="#D8924A" />
+  <svg width="128" height="54" viewBox="0 0 128 54" fill="none">
+    {/* sombra base */}
+    <rect x="4" y="40" width="120" height="10" rx="5" fill="#7A3E0E" />
+    {/* arco do pão — forma alongada de hot dog */}
+    <path d="M6 42 Q6 4 64 3 Q122 4 122 42 Z" fill="#B86820" />
+    {/* camada mais clara no topo */}
+    <path d="M14 42 Q14 11 64 10 Q114 11 114 42 Z" fill="#D8873A" />
+    {/* brilho lateral esquerdo */}
+    <ellipse cx="40" cy="20" rx="16" ry="7" fill="rgba(255,215,120,0.16)" />
     {/* gergelim */}
-    <ellipse cx="44" cy="22" rx="5.5" ry="3"  fill="#E8B870" transform="rotate(-20 44 22)"/>
-    <ellipse cx="70" cy="17" rx="5.5" ry="3"  fill="#E8B870"/>
-    <ellipse cx="96" cy="22" rx="5.5" ry="3"  fill="#E8B870" transform="rotate(20 96 22)"/>
-    <ellipse cx="57" cy="31" rx="4"   ry="2.5" fill="#E8B870" transform="rotate(-10 57 31)"/>
-    <ellipse cx="83" cy="31" rx="4"   ry="2.5" fill="#E8B870" transform="rotate(10 83 31)"/>
-    {/* brilho */}
-    <ellipse cx="52" cy="20" rx="22" ry="8" fill="rgba(255,220,140,0.18)"/>
+    <ellipse cx="38" cy="24" rx="5" ry="2.8" fill="#E8B870" transform="rotate(-18 38 24)" />
+    <ellipse cx="64" cy="18" rx="5" ry="2.8" fill="#E8B870" />
+    <ellipse cx="90" cy="24" rx="5" ry="2.8" fill="#E8B870" transform="rotate(18 90 24)" />
+    <ellipse cx="51" cy="32" rx="4"  ry="2.2" fill="#E8B870" transform="rotate(-8 51 32)" />
+    <ellipse cx="77" cy="32" rx="4"  ry="2.2" fill="#E8B870" transform="rotate(8 77 32)" />
   </svg>
 )
 
 const PaoBaixo = () => (
-  <svg width="140" height="36" viewBox="0 0 140 36" fill="none">
-    {/* fundo */}
-    <ellipse cx="70" cy="26" rx="64" ry="18" fill="#A0611A" />
-    {/* superfície */}
-    <ellipse cx="70" cy="18" rx="62" ry="14" fill="#C8822A" />
-    {/* parte interna mais clara (miolo) */}
-    <ellipse cx="70" cy="13" rx="54" ry="9" fill="#E8A850" />
+  <svg width="128" height="28" viewBox="0 0 128 28" fill="none">
+    {/* fundo escuro */}
+    <rect x="4" y="10" width="120" height="16" rx="8" fill="#7A3E0E" />
+    {/* corpo do pão */}
+    <rect x="4" y="6" width="120" height="16" rx="8" fill="#B86820" />
+    {/* miolo (interior mais claro) */}
+    <rect x="10" y="6" width="108" height="10" rx="6" fill="#E8A040" />
+    {/* brilho */}
+    <ellipse cx="64" cy="9" rx="34" ry="4" fill="rgba(255,215,120,0.18)" />
   </svg>
 )
 
@@ -115,12 +117,12 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
             {/* Salsicha — animada */}
             <MotionBox
               position="absolute"
-              bottom="52px"
+              bottom="44px"
               left="50%"
               marginLeft="-55px"
               zIndex={10}
               animate={{
-                y:      [0, 0, -10, -160, -160, -160, -10, 0, 0],
+                y:      [0, 0, -10, -155, -155, -155, -10, 0, 0],
                 rotate: [0, 0,   0,    0,  180,  360,  360, 360, 0],
                 scaleX: [1, 1,  0.85,  1,    1,    1,   1, 0.85, 1],
                 scaleY: [1, 1,  1.15,  1,    1,    1,   1, 1.15, 1],
@@ -139,7 +141,7 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
             {/* Pão de cima — flutua levemente quando a salsicha sai */}
             <MotionBox
               position="absolute"
-              bottom="72px"
+              bottom="60px"
               left="50%"
               transform="translateX(-50%)"
               animate={{
