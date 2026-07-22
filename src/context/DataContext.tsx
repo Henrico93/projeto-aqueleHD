@@ -255,7 +255,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false)
     } catch (err: any) {
       console.error("Erro ao carregar dados:", err)
-      setError(err.message || "Erro ao carregar dados da API")
+      // 401 é tratado pelo interceptor (redireciona pro login), não mostrar overlay de erro
+      if (err.response?.status !== 401) {
+        setError(err.message || "Erro ao carregar dados da API")
+      }
       setLoading(false)
 
       // Carregar dados de fallback do localStorage se a API falhar
@@ -439,7 +442,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (savedUser) {
       try { setCurrentUser(JSON.parse(savedUser)) } catch {}
     }
-    refreshData()
+    const token = localStorage.getItem("authToken")
+    if (token && token !== "undefined") {
+      refreshData()
+    } else {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -1075,6 +1083,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       localStorage.setItem("currentUser", JSON.stringify(user));
       setCurrentUser(user);
+      await refreshData();
       return true;
     } catch (err) {
       console.error("Falha ao logar:", err);
