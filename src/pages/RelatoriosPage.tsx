@@ -382,7 +382,7 @@ const RelatoriosPage = () => {
         </Flex>
       </Flex>
 
-      <Box ref={reportRef} p={4} borderRadius="2xl" bg="brand.darker" mx="-16px">
+      <Box ref={reportRef} p={{ base: 2, md: 4 }} borderRadius="2xl" bg="brand.darker" mx={0}>
         <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6} mb={8}>
         <MotionGridItem initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}>
           <Box variant="glass" p={6} borderRadius="2xl" position="relative" overflow="hidden">

@@ -15,9 +15,15 @@ const Layout = ({ children }: LayoutProps) => {
   return (
     <Flex h="100vh" w="100%" overflow="hidden">
       <Sidebar />
-      <Flex direction="column" flex="1" h="100vh">
+      <Flex direction="column" flex="1" h="100vh" minW={0}>
         <Header />
-        <Box flex="1" p={6} overflowY="auto" position="relative">
+        <Box
+          flex="1"
+          p={{ base: 3, md: 6 }}
+          pb={{ base: "72px", md: 6 }}
+          overflowY="auto"
+          position="relative"
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

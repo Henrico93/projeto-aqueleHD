@@ -152,12 +152,12 @@ const HomePage = () => {
 
   return (
     <Box maxW="1400px" mx="auto" w="100%">
-      <Flex justify="space-between" align="center" mb={10}>
+      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} mb={{ base: 6, md: 10 }} flexWrap="wrap" gap={4}>
         <Box>
-          <Heading size="xl" color="brand.light" fontWeight="700">
+          <Heading size={{ base: "lg", md: "xl" }} color="brand.light" fontWeight="700">
             {isAdmin ? "Painel de Controle" : `Olá, ${currentUser?.nome?.split(' ')[0]}!`}
           </Heading>
-          <Text color="gray.400" mt={1}>
+          <Text color="gray.400" mt={1} fontSize={{ base: "sm", md: "md" }}>
             {isAdmin ? "Visão geral do Aquele Hot Dogs" : "Bom turno de trabalho! Veja como estamos:"}
           </Text>
         </Box>
@@ -171,6 +171,7 @@ const HomePage = () => {
           color="brand.light"
           _hover={{ bg: "whiteAlpha.200", borderColor: "brand.primary" }}
           borderRadius="full"
+          size={{ base: "sm", md: "md" }}
           px={6}
         >
           Sincronizar

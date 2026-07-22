@@ -191,7 +191,7 @@ const PagamentoPage = () => {
       <Grid templateColumns={{ base: "1fr", lg: "5fr 4fr" }} gap={8}>
         {/* Resumo do pedido */}
         <MotionGridItem initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-          <Box variant="glass" p={8} borderRadius="2xl" height="100%" display="flex" flexDirection="column">
+          <Box variant="glass" p={{ base: 4, md: 8 }} borderRadius="2xl" height="100%" display="flex" flexDirection="column">
             <Flex justify="space-between" align="center" mb={6}>
               <Flex align="center" gap={3}>
                 <Box p={2} bg="whiteAlpha.100" borderRadius="md"><FiPrinter color="#FFD700" /></Box>
@@ -307,7 +307,7 @@ const PagamentoPage = () => {
         {/* Métodos de pagamento ou Sucesso */}
         <MotionGridItem initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
           {!pagamentoFinalizado ? (
-            <Box variant="glass" p={8} borderRadius="2xl" height="100%">
+            <Box variant="glass" p={{ base: 4, md: 8 }} borderRadius="2xl" height="100%">
               <Heading size="md" mb={6} color="brand.light">
                 Forma de Pagamento
               </Heading>

@@ -3,7 +3,6 @@ import {
   Box,
   Heading,
   VStack,
-  HStack,
   Text,
   Badge,
   Input,
@@ -64,7 +63,7 @@ const HistoricoPage = () => {
   const qtdPago = pedidosFiltrados.filter((p) => p.status === "pago").length
 
   return (
-    <Box p={6} maxW="900px" mx="auto">
+    <Box p={{ base: 3, md: 6 }} maxW="900px" mx="auto" w="100%">
       <Heading size="lg" color="white" mb={1}>
         Histórico de Comandas
       </Heading>
@@ -73,8 +72,8 @@ const HistoricoPage = () => {
       </Text>
 
       {/* Filtros */}
-      <HStack spacing={4} mb={6} flexWrap="wrap">
-        <InputGroup maxW="300px">
+      <Flex gap={3} mb={6} flexWrap="wrap" direction={{ base: "column", md: "row" }}>
+        <InputGroup maxW={{ base: "100%", md: "300px" }} w="100%">
           <InputLeftElement pointerEvents="none">
             <Icon as={FiSearch} color="gray.400" />
           </InputLeftElement>
@@ -92,7 +91,7 @@ const HistoricoPage = () => {
         </InputGroup>
 
         <Select
-          maxW="200px"
+          maxW={{ base: "100%", md: "200px" }}
           value={filtroStatus}
           onChange={(e) => setFiltroStatus(e.target.value)}
           bg="brand.surface"
@@ -106,10 +105,10 @@ const HistoricoPage = () => {
           <option value="fechado" style={{ background: "#16213e" }}>Fechado</option>
           <option value="aberto" style={{ background: "#16213e" }}>Aberto</option>
         </Select>
-      </HStack>
+      </Flex>
 
       {/* Cards de resumo */}
-      <HStack spacing={4} mb={6}>
+      <Flex gap={4} mb={6} direction={{ base: "column", md: "row" }}>
         <Box
           bg="brand.surface"
           p={4}
@@ -143,7 +142,7 @@ const HistoricoPage = () => {
             R$ {totalPago.toFixed(2)}
           </Text>
         </Box>
-      </HStack>
+      </Flex>
 
       {/* Lista de comandas */}
       {pedidosFiltrados.length === 0 ? (
@@ -196,7 +195,7 @@ const HistoricoPage = () => {
                         <Text color="brand.secondary" fontWeight="bold">
                           R$ {total.toFixed(2)}
                         </Text>
-                        <Text color="gray.500" fontSize="xs" minW="120px">
+                        <Text color="gray.500" fontSize="xs">
                           {data}
                         </Text>
                       </Flex>

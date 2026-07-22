@@ -187,8 +187,8 @@ const PedidosPage = () => {
           </Button>
         </HStack>
 
-        <HStack spacing={3}>
-          <InputGroup maxW="300px">
+        <Flex gap={2} flexWrap="wrap" w={{ base: "100%", md: "auto" }}>
+          <InputGroup maxW={{ base: "100%", md: "260px" }} flex={{ base: "1 1 100%", md: "unset" }}>
             <InputLeftElement pointerEvents="none">
               <FiSearch color="gray.400" />
             </InputLeftElement>
@@ -214,6 +214,7 @@ const PedidosPage = () => {
             color="brand.light"
             _hover={{ bg: "whiteAlpha.200", borderColor: "brand.secondary" }}
             borderRadius="full"
+            size={{ base: "sm", md: "md" }}
           >
             Atualizar
           </Button>
@@ -224,13 +225,14 @@ const PedidosPage = () => {
             variant="primary"
             borderRadius="full"
             leftIcon={<FiPlus />}
+            size={{ base: "sm", md: "md" }}
           >
             Nova Comanda
           </Button>
-        </HStack>
+        </Flex>
       </Flex>
 
-      <Box variant="glass" borderRadius="2xl" p={6} minH="400px">
+      <Box variant="glass" borderRadius="2xl" p={{ base: 3, md: 6 }} minH="400px">
         {isRefreshing ? (
           <Flex justify="center" align="center" h="100%" py={20}>
             <Spinner color="brand.primary" size="xl" thickness="4px" />
@@ -260,7 +262,7 @@ const PedidosPage = () => {
                   <Flex align="flex-start" width="100%" direction="column" gap={2}>
                     {/* Linha superior: ID, cliente, mesa, status, total */}
                     <Flex align="center" width="100%">
-                      <Box width="110px" pl={2} flexShrink={0}>
+                      <Box width={{ base: "70px", md: "110px" }} pl={2} flexShrink={0}>
                         <Text fontWeight="bold" color="brand.secondary" fontSize="lg">
                           #{pedido.id}
                         </Text>
@@ -290,7 +292,7 @@ const PedidosPage = () => {
                     </Flex>
 
                     {/* Linha de itens com adicionais/removidos */}
-                    <Flex pl="110px" flexWrap="wrap" gap={2} width="100%">
+                    <Flex pl={{ base: "70px", md: "110px" }} flexWrap="wrap" gap={2} width="100%">
                       {pedido.itens.map((item, idx) => (
                         <Box
                           key={idx}

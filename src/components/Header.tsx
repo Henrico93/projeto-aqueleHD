@@ -6,8 +6,8 @@ const Header = () => {
     <Box
       as="header"
       w="100%"
-      px={8}
-      py={4}
+      px={{ base: 4, md: 8 }}
+      py={{ base: 3, md: 4 }}
       bg="brand.surface"
       backdropFilter="blur(16px)"
       sx={{ WebkitBackdropFilter: "blur(16px)" }}
@@ -18,10 +18,10 @@ const Header = () => {
       zIndex={10}
       boxShadow="0 4px 30px rgba(0, 0, 0, 0.1)"
     >
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" align="center" gap={2}>
         <Heading
           as="h1"
-          fontSize="3xl"
+          fontSize={{ base: "xl", md: "3xl" }}
           fontFamily="'Bubblegum Sans', cursive"
           letterSpacing="wider"
           bgGradient="linear(to-r, brand.primary, brand.secondary)"
@@ -31,7 +31,7 @@ const Header = () => {
           Aquele Hot Dogs
         </Heading>
         
-        <Flex align="center" gap={4}>
+        <Flex align="center" gap={{ base: 1, md: 4 }}>
           <IconButton
             aria-label="Notifications"
             icon={<FiBell />}

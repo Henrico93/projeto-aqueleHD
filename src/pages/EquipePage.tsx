@@ -143,13 +143,13 @@ const EquipePage = () => {
   }
 
   return (
-    <Box>
-      <Flex justify="space-between" align="center" mb={8}>
+    <Box maxW="1400px" mx="auto" w="100%">
+      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} mb={8} flexWrap="wrap" gap={4}>
         <Box>
-          <Heading size="xl" mb={2}>
+          <Heading size={{ base: "lg", md: "xl" }} mb={2}>
             Gestão de Equipe
           </Heading>
-          <Text color="gray.400">
+          <Text color="gray.400" fontSize={{ base: "sm", md: "md" }}>
             Controle quem tem acesso ao sistema e quais permissões eles possuem.
           </Text>
         </Box>
@@ -159,6 +159,7 @@ const EquipePage = () => {
           bg="brand.primary"
           _hover={{ bg: "orange.400" }}
           onClick={() => handleOpenModal()}
+          size={{ base: "sm", md: "md" }}
         >
           Novo Funcionário
         </Button>
