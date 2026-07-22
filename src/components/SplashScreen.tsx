@@ -6,46 +6,48 @@ const MotionBox = motion(Box)
 // ── SVGs ────────────────────────────────────────────────────────────────────
 
 const Salsicha = () => (
-  <svg width="110" height="32" viewBox="0 0 110 32" fill="none">
-    <rect x="17" y="1" width="76" height="30" rx="15" fill="#C8564E" />
-    <ellipse cx="17" cy="16" rx="15" ry="15" fill="#B0423A" />
-    <ellipse cx="93" cy="16" rx="15" ry="15" fill="#B0423A" />
-    <ellipse cx="55" cy="9"  rx="28" ry="6"  fill="rgba(255,255,255,0.18)" />
-    <line x1="42" y1="4"  x2="40" y2="28" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
-    <line x1="57" y1="2"  x2="55" y2="30" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
-    <line x1="72" y1="4"  x2="70" y2="28" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
+  <svg width="120" height="34" viewBox="0 0 120 34" fill="none">
+    <rect x="18" y="2" width="84" height="30" rx="15" fill="#C8564E" />
+    <ellipse cx="18" cy="17" rx="15" ry="15" fill="#B0423A" />
+    <ellipse cx="102" cy="17" rx="15" ry="15" fill="#B0423A" />
+    <ellipse cx="60" cy="10" rx="30" ry="6.5" fill="rgba(255,255,255,0.18)" />
+    <line x1="46" y1="5"  x2="44" y2="29" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
+    <line x1="62" y1="3"  x2="60" y2="31" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
+    <line x1="78" y1="5"  x2="76" y2="29" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
   </svg>
 )
 
-/* Metade superior do pão — leve arco no topo, gergelim */
-const PaoCima = () => (
-  <svg width="130" height="32" viewBox="0 0 130 32" fill="none">
-    {/* sombra base */}
-    <rect x="4" y="24" width="122" height="7" rx="3" fill="#7A3E0E" />
-    {/* arco principal (bem achatado — hot dog, não hamburguer) */}
-    <path d="M5 27 Q5 3 65 2 Q125 3 125 27 Z" fill="#B86820" />
-    {/* camada mais clara */}
-    <path d="M12 27 Q12 9 65 8 Q118 9 118 27 Z" fill="#D8873A" />
-    {/* gergelim */}
-    <ellipse cx="38" cy="18" rx="5"   ry="2.5" fill="#E8B870" transform="rotate(-15 38 18)" />
-    <ellipse cx="65" cy="13" rx="5"   ry="2.5" fill="#E8B870" />
-    <ellipse cx="92" cy="18" rx="5"   ry="2.5" fill="#E8B870" transform="rotate(15 92 18)" />
-    {/* brilho */}
-    <ellipse cx="46" cy="13" rx="18" ry="6" fill="rgba(255,215,120,0.16)" />
-  </svg>
-)
-
-/* Metade inferior do pão — plana (cradle) */
-const PaoBaixo = () => (
-  <svg width="130" height="18" viewBox="0 0 130 18" fill="none">
+/* Pão 1 — metade inferior, retangular (HOT DOG, não hamburguer) */
+const Pao = () => (
+  <svg width="155" height="40" viewBox="0 0 155 40" fill="none">
     {/* sombra */}
-    <rect x="4" y="10" width="122" height="7"  rx="3" fill="#7A3E0E" />
-    {/* corpo */}
-    <rect x="4" y="3"  width="122" height="12" rx="6" fill="#B86820" />
-    {/* miolo */}
-    <rect x="9" y="3"  width="112" height="8"  rx="5" fill="#E8A040" />
+    <rect x="5" y="28" width="145" height="11" rx="5" fill="#7A3E0E" />
+    {/* corpo — retângulo com pontas arredondadas */}
+    <rect x="5" y="4"  width="145" height="30" rx="12" fill="#C8822A" />
+    {/* miolo (face cortada) */}
+    <rect x="11" y="4" width="133" height="20" rx="9"  fill="#E8A850" />
     {/* brilho */}
-    <ellipse cx="65" cy="7" rx="38" ry="3" fill="rgba(255,215,140,0.20)" />
+    <ellipse cx="77" cy="11" rx="46" ry="6" fill="rgba(255,220,140,0.22)" />
+  </svg>
+)
+
+/* Pão 2 — metade superior, mesmo formato mas bem mais alto */
+const PaoArco = () => (
+  <svg width="155" height="58" viewBox="0 0 155 58" fill="none">
+    {/* sombra */}
+    <rect x="5" y="45" width="145" height="12" rx="5" fill="#7A3E0E" />
+    {/* corpo — mesma forma retangular do pão 1, só mais alto */}
+    <rect x="5" y="4"  width="145" height="48" rx="14" fill="#C8822A" />
+    {/* miolo (face cortada interna) */}
+    <rect x="11" y="4" width="133" height="34" rx="10" fill="#D8924A" />
+    {/* brilho topo */}
+    <ellipse cx="77" cy="14" rx="46" ry="8" fill="rgba(255,220,140,0.18)" />
+    {/* gergelim — no topo do pão */}
+    <ellipse cx="44"  cy="22" rx="6"   ry="3"   fill="#E8B870" transform="rotate(-15 44 22)" />
+    <ellipse cx="77"  cy="15" rx="6"   ry="3"   fill="#E8B870" />
+    <ellipse cx="111" cy="22" rx="6"   ry="3"   fill="#E8B870" transform="rotate(15 111 22)" />
+    <ellipse cx="58"  cy="32" rx="5"   ry="2.5" fill="#E8B870" transform="rotate(-8 58 32)" />
+    <ellipse cx="97"  cy="32" rx="5"   ry="2.5" fill="#E8B870" transform="rotate(8 97 32)" />
   </svg>
 )
 
@@ -85,7 +87,6 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.7, ease: "easeInOut" }}
         >
-          {/* Brilho de fundo */}
           <Box
             position="absolute"
             w="400px" h="400px"
@@ -95,35 +96,32 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
           />
 
           {/*
-            Palco:
-              PaoBaixo  z=1  — atrás da salsicha (base)
-              Salsicha  z=10 — no meio, salta e gira
-              PaoCima   z=20 — na frente, cobre a borda superior da salsicha
-            Os dois pães ficam bem próximos: gap de ~14px preenchido pela salsicha.
+            z-order: pão baixo (1) < pão cima (5) < salsicha (20)
+            A salsicha SEMPRE fica na frente dos dois pães.
           */}
-          <Box position="relative" w="190px" h="200px">
+          <Box position="relative" w="210px" h="200px">
 
-            {/* Metade inferior do pão */}
+            {/* Pão de baixo — na frente da salsicha e do pão 2 */}
             <Box
               position="absolute"
-              bottom="6px"
+              bottom="4px"
               left="50%"
-              marginLeft="-65px"
-              zIndex={1}
+              marginLeft="-77px"
+              zIndex={20}
             >
-              <PaoBaixo />
+              <Pao />
             </Box>
 
-            {/* Salsicha */}
+            {/* Salsicha — entre os dois pães */}
             <MotionBox
               position="absolute"
-              bottom="20px"
+              bottom="26px"
               left="50%"
-              marginLeft="-55px"
+              marginLeft="-60px"
               zIndex={10}
               animate={{
                 y:      [0, 0, -10, -110, -110, -110, -10, 0, 0],
-                rotate: [0, 0,   0,    0,  180,  360,  360, 360, 0],
+                rotate: [0, 0,   0,    0,  180,  360,  360, 360, 360],
                 scaleX: [1, 1, 0.85,   1,    1,    1,    1, 0.85, 1],
                 scaleY: [1, 1, 1.15,   1,    1,    1,    1, 1.15, 1],
               }}
@@ -138,14 +136,14 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
               <Salsicha />
             </MotionBox>
 
-            {/* Metade superior do pão */}
+            {/* Pão 2 — atrás de tudo */}
             <MotionBox
               position="absolute"
-              bottom="40px"
+              bottom="30px"
               left="50%"
-              marginLeft="-65px"
-              zIndex={20}
-              animate={{ y: [0, 0, -7, -7, -7, -7, -7, 0, 0] }}
+              marginLeft="-77px"
+              zIndex={1}
+              animate={{ y: [0, 0, -8, -8, -8, -8, -8, 0, 0] }}
               transition={{
                 duration: 2.4,
                 times:    [0, 0.08, 0.18, 0.38, 0.52, 0.66, 0.82, 0.92, 1],
@@ -154,11 +152,10 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
                 ease: "easeInOut",
               }}
             >
-              <PaoCima />
+              <PaoArco />
             </MotionBox>
           </Box>
 
-          {/* Título */}
           <Text
             fontFamily="'Bubblegum Sans', cursive"
             fontSize={{ base: "2xl", md: "3xl" }}
@@ -170,7 +167,6 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
             Aquele Hot Dogs
           </Text>
 
-          {/* Dots de carregamento */}
           <Flex gap={3} align="center">
             <Dot delay={0} />
             <Dot delay={0.15} />
