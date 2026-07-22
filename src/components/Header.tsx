@@ -10,7 +10,7 @@ const Header = () => {
       py={4}
       bg="brand.surface"
       backdropFilter="blur(16px)"
-      WebkitBackdropFilter="blur(16px)"
+      sx={{ WebkitBackdropFilter: "blur(16px)" }}
       borderBottom="1px solid"
       borderColor="brand.surfaceborder"
       position="sticky"
