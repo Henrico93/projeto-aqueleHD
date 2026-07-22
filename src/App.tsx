@@ -13,6 +13,8 @@ import RelatoriosPage from "./pages/RelatoriosPage"
 import ProdutosPage from "./pages/ProdutosPage"
 import LoginPage from "./pages/LoginPage"
 import EquipePage from "./pages/EquipePage"
+import HistoricoPage from "./pages/HistoricoPage"
+import ComprovantePage from "./pages/ComprovantePage"
 import { DataProvider } from "./context/DataContext"
 import LoadingOverlay from "./components/LoadingOverlay"
 import { useData } from "./context/DataContext"
@@ -72,7 +74,8 @@ const AppContent = () => {
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          
+          <Route path="/comprovante" element={<ComprovantePage />} />
+
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/pedidos" element={<PedidosPage />} />
@@ -83,6 +86,7 @@ const AppContent = () => {
             <Route path="/relatorios" element={<RelatoriosPage />} />
             <Route path="/produtos" element={<ProdutosPage />} />
             <Route path="/equipe" element={<EquipePage />} />
+            <Route path="/historico" element={<HistoricoPage />} />
           </Route>
         </Routes>
       </Router>

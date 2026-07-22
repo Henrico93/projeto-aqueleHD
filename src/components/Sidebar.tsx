@@ -1,6 +1,6 @@
 import { Box, VStack, Icon, Tooltip, Avatar, IconButton } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom"
-import { FiFileText, FiDollarSign, FiShoppingCart, FiMonitor, FiPackage, FiBarChart2, FiUsers, FiLogOut } from "react-icons/fi"
+import { FiFileText, FiDollarSign, FiShoppingCart, FiMonitor, FiPackage, FiBarChart2, FiUsers, FiLogOut, FiClock } from "react-icons/fi"
 import { motion } from "framer-motion"
 
 import { useData } from "../context/DataContext"
@@ -29,6 +29,7 @@ const Sidebar = () => {
     { path: "/estoque", icon: FiPackage, label: "Estoque", requiredPerm: "estoque" },
     { path: "/produtos", icon: FiShoppingCart, label: "Produtos", requiredPerm: "produtos" },
     { path: "/relatorios", icon: FiBarChart2, label: "Relatórios", requiredPerm: "relatorios" },
+    { path: "/historico", icon: FiClock, label: "Histórico", requiredPerm: "pedidos" },
   ].filter(item => {
     if (item.requiredPerm === "none" || currentUser?.role === "admin") return true
     return currentUser?.permissoes?.includes(item.requiredPerm)

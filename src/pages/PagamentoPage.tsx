@@ -512,16 +512,20 @@ const PagamentoPage = () => {
                 <Flex justify="center">
                   <Box bg="white" p={3} borderRadius="xl" display="inline-block">
                     <QRCodeSVG
-                      value={JSON.stringify({
-                        estabelecimento: "Aquele Hot Dogs",
-                        comanda: `#${pedidoId}`,
-                        cliente: pedido.cliente,
-                        mesa: pedido.mesa,
-                        valor: `R$ ${valorTotal.toFixed(2)}`,
-                        pagamento: metodoPagamento,
-                        dataHora: new Date().toLocaleString("pt-BR"),
-                        itens: pedido.itens.map((i) => `${i.quantidade}x ${i.nome}`).join(", "),
-                      })}
+                      value={(() => {
+                        const comprovanteData = {
+                          estabelecimento: "Aquele Hot Dogs",
+                          comanda: `#${pedidoId}`,
+                          cliente: pedido.cliente,
+                          mesa: pedido.mesa,
+                          valor: `R$ ${valorTotal.toFixed(2)}`,
+                          pagamento: metodoPagamento,
+                          dataHora: new Date().toLocaleString("pt-BR"),
+                          itens: pedido.itens.map((i) => `${i.quantidade}x ${i.nome}`),
+                        }
+                        const encoded = btoa(encodeURIComponent(JSON.stringify(comprovanteData)))
+                        return `${window.location.origin}/comprovante?data=${encoded}`
+                      })()}
                       size={140}
                       level="M"
                     />
