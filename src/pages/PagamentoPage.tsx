@@ -506,11 +506,11 @@ const PagamentoPage = () => {
               </Box>
 
               <Box bg="whiteAlpha.50" p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100" w="100%" mb={5}>
-                <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wider" mb={3} textAlign="center">
+                <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wider" mb={4} textAlign="center">
                   Comprovante Digital (QR Code)
                 </Text>
                 <Flex justify="center">
-                  <Box bg="white" p={3} borderRadius="xl" display="inline-block">
+                  <Box bg="white" p={4} borderRadius="2xl" display="inline-block" boxShadow="0 0 30px rgba(255,107,0,0.2)">
                     <QRCodeSVG
                       value={(() => {
                         const comprovanteData = {
@@ -526,13 +526,13 @@ const PagamentoPage = () => {
                         const encoded = btoa(encodeURIComponent(JSON.stringify(comprovanteData)))
                         return `${window.location.origin}/comprovante?data=${encoded}`
                       })()}
-                      size={140}
+                      size={220}
                       level="M"
                     />
                   </Box>
                 </Flex>
-                <Text color="gray.500" fontSize="xs" textAlign="center" mt={2}>
-                  Escaneie para ver o resumo do pedido
+                <Text color="gray.500" fontSize="sm" textAlign="center" mt={3}>
+                  📱 Escaneie para baixar o comprovante
                 </Text>
               </Box>
 

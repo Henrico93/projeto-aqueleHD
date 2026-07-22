@@ -1,5 +1,5 @@
 import type React from "react"
-import { Box, Flex } from "@chakra-ui/react"
+import { Box, Flex, useDisclosure } from "@chakra-ui/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useLocation } from "react-router-dom"
 import Sidebar from "./Sidebar"
@@ -11,16 +11,17 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation()
+  const { isOpen, onOpen, onClose } = useDisclosure()
 
   return (
     <Flex h="100vh" w="100%" overflow="hidden">
-      <Sidebar />
+      <Sidebar isMenuOpen={isOpen} onMenuOpen={onOpen} onMenuClose={onClose} />
       <Flex direction="column" flex="1" h="100vh" minW={0}>
-        <Header />
+        <Header onMenuOpen={onOpen} />
         <Box
           flex="1"
           p={{ base: 3, md: 6 }}
-          pb={{ base: "72px", md: 6 }}
+          pb={{ base: 6, md: 6 }}
           overflowY="auto"
           position="relative"
         >

@@ -213,7 +213,8 @@ const EquipePage = () => {
                         <Badge colorScheme="purple"><FiShield style={{display: "inline", marginRight: "4px"}}/>Acesso Total</Badge>
                       ) : (
                         <>
-                          {user.permissoes.includes("pedidos") && <Badge>Pedidos</Badge>}
+                          {user.permissoes.includes("pedidos") && <Badge colorScheme="blue">Pedidos</Badge>}
+                          {user.permissoes.includes("pedidos") && <Badge colorScheme="teal">Histórico</Badge>}
                           {user.permissoes.includes("estoque") && <Badge>Estoque</Badge>}
                           {user.permissoes.includes("produtos") && <Badge>Cardápio</Badge>}
                           {user.permissoes.includes("relatorios") && <Badge colorScheme="yellow">Relatórios</Badge>}
@@ -279,7 +280,7 @@ const EquipePage = () => {
                   <VStack align="stretch" spacing={3}>
                     <FormControl display="flex" alignItems="center">
                       <FormLabel htmlFor="perm-pedidos" mb="0" flex="1">
-                        Área de Pedidos (Abrir comandas e Cobrar)
+                        Área de Pedidos (Comandas, Cobranças e Histórico)
                       </FormLabel>
                       <Switch id="perm-pedidos" colorScheme="orange" isChecked={isPermPedidos} onChange={(e) => setIsPermPedidos(e.target.checked)} />
                     </FormControl>
