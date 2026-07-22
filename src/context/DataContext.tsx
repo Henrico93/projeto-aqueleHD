@@ -201,21 +201,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Carregar as relações do localStorage
       const savedRelacoes = localStorage.getItem("produtoEstoqueRelacoes")
-      const relacoes = savedRelacoes ? JSON.parse(savedRelacoes) : []
-      setRelacoesEstoque(relacoes)
+      const relacoesLocal: ProdutoEstoqueRelacao[] = savedRelacoes ? JSON.parse(savedRelacoes) : []
 
-      // Adicionar as relações aos produtos
+      // Montar produtos preferindo itensEstoque do banco; sincronizar relacoesEstoque
       const produtosComRelacoes = produtosResponse.data.map((produto: Produto) => {
-        const relacoesDosProduto = relacoes.filter((rel: ProdutoEstoqueRelacao) => rel.produtoId === produto.id)
-        return {
-          ...produto,
-          itensEstoque: relacoesDosProduto.map((rel: ProdutoEstoqueRelacao) => ({
-            itemId: rel.itemId,
-            quantidade: rel.quantidade,
-          })),
-        }
+        const relacoesDosProduto = relacoesLocal.filter((rel) => rel.produtoId === produto.id)
+        // Prioridade: localStorage (editado pelo usuário) > itensEstoque do banco (seed)
+        const itensEstoque =
+          relacoesDosProduto.length > 0
+            ? relacoesDosProduto.map((rel) => ({ itemId: rel.itemId, quantidade: rel.quantidade }))
+            : produto.itensEstoque || []
+        return { ...produto, itensEstoque }
       })
 
+      // Se não havia relações no localStorage, sincronizar com o que veio do banco
+      const todasRelacoes: ProdutoEstoqueRelacao[] =
+        relacoesLocal.length > 0
+          ? relacoesLocal
+          : produtosResponse.data.flatMap((produto: Produto) =>
+              (produto.itensEstoque || []).map((item: { itemId: number; quantidade: number }) => ({
+                produtoId: produto.id,
+                itemId: item.itemId,
+                quantidade: item.quantidade,
+              })),
+            )
+
+      setRelacoesEstoque(todasRelacoes)
       setProdutos(produtosComRelacoes)
       console.log("Produtos com relações:", produtosComRelacoes)
 
