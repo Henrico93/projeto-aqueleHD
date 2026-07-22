@@ -6,51 +6,48 @@ const MotionBox = motion(Box)
 // ── SVGs ────────────────────────────────────────────────────────────────────
 
 const Salsicha = () => (
-  <svg width="110" height="38" viewBox="0 0 110 38" fill="none">
-    {/* corpo */}
-    <rect x="19" y="4" width="72" height="30" rx="15" fill="#C8564E" />
-    {/* tampo esquerdo */}
-    <ellipse cx="19" cy="19" rx="15" ry="15" fill="#B0423A" />
-    {/* tampo direito */}
-    <ellipse cx="91" cy="19" rx="15" ry="15" fill="#B0423A" />
-    {/* brilho topo */}
-    <ellipse cx="55" cy="11" rx="28" ry="6" fill="rgba(255,255,255,0.18)" />
-    {/* marcas de grelha */}
-    <line x1="42" y1="7"  x2="40" y2="31" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
-    <line x1="57" y1="5"  x2="55" y2="33" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
-    <line x1="72" y1="7"  x2="70" y2="31" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
+  <svg width="110" height="32" viewBox="0 0 110 32" fill="none">
+    <rect x="17" y="1" width="76" height="30" rx="15" fill="#C8564E" />
+    <ellipse cx="17" cy="16" rx="15" ry="15" fill="#B0423A" />
+    <ellipse cx="93" cy="16" rx="15" ry="15" fill="#B0423A" />
+    <ellipse cx="55" cy="9" rx="28" ry="6" fill="rgba(255,255,255,0.18)" />
+    <line x1="42" y1="4"  x2="40" y2="28" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
+    <line x1="57" y1="2"  x2="55" y2="30" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
+    <line x1="72" y1="4"  x2="70" y2="28" stroke="rgba(100,30,20,0.35)" strokeWidth="2.5" strokeLinecap="round"/>
   </svg>
 )
 
+// Pão de cima: só o arco (base aberta/transparente) para a salsicha aparecer embaixo
 const PaoCima = () => (
-  <svg width="128" height="54" viewBox="0 0 128 54" fill="none">
+  <svg width="130" height="50" viewBox="0 0 130 50" fill="none">
     {/* sombra base */}
-    <rect x="4" y="40" width="120" height="10" rx="5" fill="#7A3E0E" />
-    {/* arco do pão — forma alongada de hot dog */}
-    <path d="M6 42 Q6 4 64 3 Q122 4 122 42 Z" fill="#B86820" />
-    {/* camada mais clara no topo */}
-    <path d="M14 42 Q14 11 64 10 Q114 11 114 42 Z" fill="#D8873A" />
-    {/* brilho lateral esquerdo */}
-    <ellipse cx="40" cy="20" rx="16" ry="7" fill="rgba(255,215,120,0.16)" />
+    <rect x="4" y="41" width="122" height="7" rx="4" fill="#7A3E0E" />
+    {/* arco alongado — forma de hot dog, não de hamburguer */}
+    <path d="M5 45 Q5 3 65 2 Q125 3 125 45 Z" fill="#B86820" />
+    {/* camada mais clara */}
+    <path d="M13 45 Q13 11 65 10 Q117 11 117 45 Z" fill="#D8873A" />
     {/* gergelim */}
-    <ellipse cx="38" cy="24" rx="5" ry="2.8" fill="#E8B870" transform="rotate(-18 38 24)" />
-    <ellipse cx="64" cy="18" rx="5" ry="2.8" fill="#E8B870" />
-    <ellipse cx="90" cy="24" rx="5" ry="2.8" fill="#E8B870" transform="rotate(18 90 24)" />
-    <ellipse cx="51" cy="32" rx="4"  ry="2.2" fill="#E8B870" transform="rotate(-8 51 32)" />
-    <ellipse cx="77" cy="32" rx="4"  ry="2.2" fill="#E8B870" transform="rotate(8 77 32)" />
+    <ellipse cx="38" cy="22" rx="5"   ry="2.8" fill="#E8B870" transform="rotate(-18 38 22)" />
+    <ellipse cx="65" cy="16" rx="5"   ry="2.8" fill="#E8B870" />
+    <ellipse cx="92" cy="22" rx="5"   ry="2.8" fill="#E8B870" transform="rotate(18 92 22)" />
+    <ellipse cx="50" cy="31" rx="4"   ry="2.2" fill="#E8B870" transform="rotate(-8 50 31)" />
+    <ellipse cx="80" cy="31" rx="4"   ry="2.2" fill="#E8B870" transform="rotate(8 80 31)" />
+    {/* brilho */}
+    <ellipse cx="46" cy="19" rx="18" ry="7" fill="rgba(255,215,120,0.15)" />
   </svg>
 )
 
+// Pão de baixo: metade inferior do pão, cradle/canoa
 const PaoBaixo = () => (
-  <svg width="128" height="28" viewBox="0 0 128 28" fill="none">
-    {/* fundo escuro */}
-    <rect x="4" y="10" width="120" height="16" rx="8" fill="#7A3E0E" />
-    {/* corpo do pão */}
-    <rect x="4" y="6" width="120" height="16" rx="8" fill="#B86820" />
-    {/* miolo (interior mais claro) */}
-    <rect x="10" y="6" width="108" height="10" rx="6" fill="#E8A040" />
+  <svg width="130" height="22" viewBox="0 0 130 22" fill="none">
+    {/* sombra */}
+    <rect x="4" y="12" width="122" height="9"  rx="4" fill="#7A3E0E" />
+    {/* corpo */}
+    <rect x="4" y="4"  width="122" height="14" rx="7" fill="#B86820" />
+    {/* miolo claro */}
+    <rect x="10" y="4" width="110" height="8"  rx="5" fill="#E8A040" />
     {/* brilho */}
-    <ellipse cx="64" cy="9" rx="34" ry="4" fill="rgba(255,215,120,0.18)" />
+    <ellipse cx="65" cy="7" rx="35" ry="3.5" fill="rgba(255,215,120,0.18)" />
   </svg>
 )
 
@@ -101,31 +98,35 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
             pointerEvents="none"
           />
 
-          {/* Palco da animação */}
-          <Box position="relative" w="160px" h="200px">
+          {/* Palco da animação
+              z-order: PaoBaixo(1) < Salsicha(10) < PaoCima(20)
+              Em repouso a salsicha fica entre os pães.
+              No pulo ela sobe acima do PaoCima fisicamente (sem sobreposição). */}
+          <Box position="relative" w="190px" h="200px">
 
-            {/* Pão de baixo — estático */}
+            {/* Pão de baixo — z=1, base estática */}
             <Box
               position="absolute"
               bottom={0}
               left="50%"
-              transform="translateX(-50%)"
+              transform="translateX(-65px)"
+              zIndex={1}
             >
               <PaoBaixo />
             </Box>
 
-            {/* Salsicha — animada */}
+            {/* Salsicha — z=10, sobe e dá cambalhota */}
             <MotionBox
               position="absolute"
-              bottom="44px"
+              bottom="12px"
               left="50%"
               marginLeft="-55px"
               zIndex={10}
               animate={{
-                y:      [0, 0, -10, -155, -155, -155, -10, 0, 0],
-                rotate: [0, 0,   0,    0,  180,  360,  360, 360, 0],
-                scaleX: [1, 1,  0.85,  1,    1,    1,   1, 0.85, 1],
-                scaleY: [1, 1,  1.15,  1,    1,    1,   1, 1.15, 1],
+                y:      [0, 0, -10, -115, -115, -115, -10, 0, 0],
+                rotate: [0, 0,   0,    0,   180,  360,  360, 360, 0],
+                scaleX: [1, 1, 0.85,   1,     1,    1,    1, 0.85, 1],
+                scaleY: [1, 1, 1.15,   1,     1,    1,    1, 1.15, 1],
               }}
               transition={{
                 duration: 2.4,
@@ -138,12 +139,13 @@ const SplashScreen = ({ isVisible }: SplashScreenProps) => {
               <Salsicha />
             </MotionBox>
 
-            {/* Pão de cima — flutua levemente quando a salsicha sai */}
+            {/* Pão de cima — z=20, cobre o topo da salsicha em repouso */}
             <MotionBox
               position="absolute"
-              bottom="60px"
+              bottom="28px"
               left="50%"
-              transform="translateX(-50%)"
+              transform="translateX(-65px)"
+              zIndex={20}
               animate={{
                 y: [0, 0, -8, -8, -8, -8, -8, 0, 0],
               }}
